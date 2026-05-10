@@ -1,9 +1,11 @@
 import 'dotenv/config';
 import express from 'express';
 import { spawn } from 'child_process';
+import cron from 'node-cron';
 import { readLatestOutput, ensureOutputDirs } from './lib/storage.js';
 import { getSchedule, regenerateSchedule } from './lib/calendar.js';
 import { readApprovals, setApproval, bulkSetApproval } from './lib/approvals.js';
+import { readScheduleConfig, writeScheduleConfig, markLastRun } from './lib/pipeline-schedule.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -42,6 +44,43 @@ const SCRIPTS = {
 const OUTPUT_TYPES = ['research', 'linkedin', 'facebook', 'instagram', 'youtube'];
 
 const running = new Set();
+
+// ── Background pipeline runner (no SSE — used by scheduler) ──────────────
+function runPipelineBackground(names) {
+  console.log(`[AutoPipeline] Starting: ${names.join(' → ')}`);
+  let i = 0;
+  function next() {
+    if (i >= names.length) {
+      markLastRun();
+      console.log('[AutoPipeline] Complete.');
+      return;
+    }
+    const name = names[i++];
+    if (!SCRIPTS[name]) { next(); return; }
+    if (running.has(name)) { console.log(`[AutoPipeline] ${name} already running — skipping.`); next(); return; }
+    running.add(name);
+    console.log(`[AutoPipeline] Running ${name}...`);
+    const child = spawn(process.execPath, [SCRIPTS[name]], { env: { ...process.env }, cwd: ROOT });
+    child.stdout.on('data', d => process.stdout.write(d));
+    child.stderr.on('data', d => process.stderr.write(d));
+    child.on('close', code => { running.delete(name); console.log(`[AutoPipeline] ${name} done (exit ${code})`); next(); });
+  }
+  next();
+}
+
+// ── Cron scheduler ────────────────────────────────────────────────────────
+let scheduledTask = null;
+
+function applySchedule(config) {
+  if (scheduledTask) { scheduledTask.stop(); scheduledTask = null; }
+  if (!config.enabled) { console.log('[Schedule] Disabled.'); return; }
+  const expr = `${config.minute} ${config.hour} * * *`;
+  scheduledTask = cron.schedule(expr, () => {
+    console.log(`[Schedule] Triggered at ${config.hour}:${String(config.minute).padStart(2,'0')} ${config.timezone}`);
+    runPipelineBackground(['research', 'linkedin', 'instagram', 'facebook']);
+  }, { timezone: config.timezone });
+  console.log(`[Schedule] Pipeline set for ${config.hour}:${String(config.minute).padStart(2,'0')} ${config.timezone} daily.`);
+}
 
 app.use(express.static(path.join(ROOT, 'public')));
 app.use('/images', express.static(path.join(ROOT, 'output', 'images')));
@@ -138,5 +177,25 @@ async function runSequence(names, res) {
   res.end();
 }
 
+// GET /api/pipeline-schedule
+app.get('/api/pipeline-schedule', (req, res) => res.json(readScheduleConfig()));
+
+// POST /api/pipeline-schedule
+app.post('/api/pipeline-schedule', express.json(), (req, res) => {
+  const { enabled, hour, minute, timezone } = req.body ?? {};
+  const config = {
+    ...readScheduleConfig(),
+    enabled: !!enabled,
+    hour: Math.max(0, Math.min(23, parseInt(hour) || 9)),
+    minute: Math.max(0, Math.min(59, parseInt(minute) || 0)),
+    timezone: timezone || 'America/Chicago',
+  };
+  writeScheduleConfig(config);
+  applySchedule(config);
+  res.json(config);
+});
+
 ensureOutputDirs();
+// Initialize cron from persisted config
+applySchedule(readScheduleConfig());
 app.listen(PORT, () => console.log(`Sophie's Automated Content Planner → http://localhost:${PORT}`));

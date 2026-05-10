@@ -287,6 +287,39 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: rgba(26,36,54,.2); }
+
+  /* ── Auto-Schedule sidebar section ── */
+  .sched-section { padding: 14px 18px 16px; border-top: 1px solid rgba(255,255,255,.07); flex-shrink: 0; }
+  .sched-section h2 { font-size: .67rem; text-transform: uppercase; letter-spacing: .12em; color: var(--gray); margin-bottom: 12px; font-family: var(--sans); }
+  .sched-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .sched-label { font-size: .8rem; font-weight: 600; color: rgba(255,255,255,.75); }
+
+  .toggle-sw { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+  .toggle-sw input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .toggle-track { position: absolute; inset: 0; background: rgba(255,255,255,.12); border-radius: 20px; cursor: pointer; transition: background .2s; }
+  .toggle-sw input:checked + .toggle-track { background: var(--olive); }
+  .toggle-track::before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: transform .2s; }
+  .toggle-sw input:checked + .toggle-track::before { transform: translateX(16px); }
+
+  .sched-time-row { display: flex; align-items: center; gap: 5px; margin-bottom: 8px; }
+  .sched-sel {
+    background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 5px; padding: 5px 7px; font-size: .78rem; color: rgba(255,255,255,.85);
+    cursor: pointer; font-family: var(--sans); flex: 1;
+  }
+  .sched-sel:focus { outline: none; border-color: var(--olive2); }
+  .sched-sep { color: var(--gray); font-size: .9rem; flex-shrink: 0; }
+  .sched-tz { width: 100%; margin-bottom: 8px; }
+  .sched-status {
+    font-size: .72rem; color: var(--gray); margin-bottom: 10px; line-height: 1.5;
+    background: rgba(255,255,255,.04); border-radius: 5px; padding: 7px 9px;
+    min-height: 34px;
+  }
+  .sched-status .sched-next { color: var(--olive2); font-weight: 600; }
+  .sched-status .sched-last { color: rgba(255,255,255,.4); }
+  .sched-save { width: 100%; background: rgba(123,140,63,.25); border: 1px solid rgba(123,140,63,.4); color: var(--olive2); font-size: .77rem; font-weight: 600; padding: 7px; border-radius: 6px; cursor: pointer; font-family: var(--sans); transition: background .15s; }
+  .sched-save:hover { background: rgba(123,140,63,.4); }
+  .sched-save.saved { background: rgba(123,140,63,.5); color: #fff; }
 </style>
 </head>
 <body>
@@ -314,6 +347,45 @@
         <button class="btn run-all" data-script="all"><span>⚡</span> Run Full Pipeline</button>
       </div>
     </div>
+    <!-- Auto-Schedule -->
+    <div class="sched-section">
+      <h2>Auto-Schedule</h2>
+      <div class="sched-row">
+        <span class="sched-label">Daily Pipeline</span>
+        <label class="toggle-sw">
+          <input type="checkbox" id="sched-enabled">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <div class="sched-time-row">
+        <select class="sched-sel" id="sched-hour">
+          <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+          <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+          <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+          <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+        </select>
+        <span class="sched-sep">:</span>
+        <select class="sched-sel" id="sched-minute">
+          <option value="0">00</option><option value="15">15</option>
+          <option value="30">30</option><option value="45">45</option>
+        </select>
+        <select class="sched-sel" id="sched-ampm">
+          <option value="AM">AM</option>
+          <option value="PM">PM</option>
+        </select>
+      </div>
+      <select class="sched-sel sched-tz" id="sched-tz">
+        <option value="America/New_York">Eastern (ET)</option>
+        <option value="America/Chicago" selected>Central (CT)</option>
+        <option value="America/Denver">Mountain (MT)</option>
+        <option value="America/Los_Angeles">Pacific (PT)</option>
+        <option value="America/Phoenix">Arizona (MST)</option>
+        <option value="Pacific/Honolulu">Hawaii (HST)</option>
+      </select>
+      <div class="sched-status" id="sched-status">Loading…</div>
+      <button class="sched-save" id="sched-save-btn" onclick="saveSchedule()">Save Schedule</button>
+    </div>
+
     <div class="terminal-wrap">
       <div class="terminal-label">
         <span>Live Output</span>
@@ -441,6 +513,7 @@ async function boot() {
   reviewApprovals = approvals;
   updateReviewBadge();
   for (const t of ALL_TYPES) { if (s.outputs[t]) { switchTab(t); break; } }
+  loadSchedule();
 }
 
 // ── Tabs ──────────────────────────────────────────────────────
@@ -893,6 +966,72 @@ function formatDateLabel(iso) {
 function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 boot();
+
+// ── Auto-Schedule ─────────────────────────────────────────────
+const TZ_LABELS = {
+  'America/New_York':'ET','America/Chicago':'CT','America/Denver':'MT',
+  'America/Los_Angeles':'PT','America/Phoenix':'MST','Pacific/Honolulu':'HST'
+};
+
+function schedH24toH12(h24) {
+  const ampm = h24 >= 12 ? 'PM' : 'AM';
+  const h12  = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
+  return { h12, ampm };
+}
+
+function updateSchedStatus(cfg) {
+  const el = document.getElementById('sched-status');
+  if (!cfg || !cfg.enabled) {
+    el.innerHTML = '<span style="color:rgba(255,255,255,.3)">Not scheduled — toggle on to activate.</span>';
+    return;
+  }
+  const { h12, ampm } = schedH24toH12(cfg.hour);
+  const min = String(cfg.minute).padStart(2,'0');
+  const tz  = TZ_LABELS[cfg.timezone] || cfg.timezone;
+  let html = `Next run: <span class="sched-next">${h12}:${min} ${ampm} ${tz} · every day</span>`;
+  if (cfg.lastRun) {
+    const d = new Date(cfg.lastRun);
+    html += `<br><span class="sched-last">Last run: ${d.toLocaleDateString('en-US',{month:'short',day:'numeric'})} at ${d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</span>`;
+  }
+  el.innerHTML = html;
+}
+
+async function loadSchedule() {
+  try {
+    const cfg = await fetch('/api/pipeline-schedule').then(r => r.json());
+    document.getElementById('sched-enabled').checked = !!cfg.enabled;
+    const { h12, ampm } = schedH24toH12(cfg.hour ?? 9);
+    document.getElementById('sched-hour').value   = h12;
+    // snap minute to nearest 15
+    const snap = [0,15,30,45].reduce((a,b) => Math.abs(b-(cfg.minute??0)) < Math.abs(a-(cfg.minute??0)) ? b : a);
+    document.getElementById('sched-minute').value = snap;
+    document.getElementById('sched-ampm').value   = ampm;
+    document.getElementById('sched-tz').value     = cfg.timezone || 'America/Chicago';
+    updateSchedStatus(cfg);
+  } catch { document.getElementById('sched-status').textContent = 'Could not load schedule.'; }
+}
+
+async function saveSchedule() {
+  const enabled  = document.getElementById('sched-enabled').checked;
+  const h12      = parseInt(document.getElementById('sched-hour').value);
+  const minute   = parseInt(document.getElementById('sched-minute').value);
+  const ampm     = document.getElementById('sched-ampm').value;
+  const timezone = document.getElementById('sched-tz').value;
+  let hour = h12;
+  if (ampm === 'PM' && h12 !== 12) hour = h12 + 12;
+  if (ampm === 'AM' && h12 === 12) hour = 0;
+  try {
+    const cfg = await fetch('/api/pipeline-schedule', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ enabled, hour, minute, timezone })
+    }).then(r => r.json());
+    updateSchedStatus(cfg);
+    const btn = document.getElementById('sched-save-btn');
+    btn.textContent = 'Saved ✓';  btn.classList.add('saved');
+    setTimeout(() => { btn.textContent = 'Save Schedule'; btn.classList.remove('saved'); }, 2200);
+  } catch { alert('Failed to save schedule — is the server running?'); }
+}
 </script>
 </body>
 </html>
