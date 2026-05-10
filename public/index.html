@@ -398,6 +398,18 @@
   .insp-remove:hover { color: #c0392b; background: rgba(192,57,43,.08); }
   .insp-empty { color: var(--gray); font-size: .82rem; text-align: center; padding: 28px 0; font-family: var(--sans); }
 
+  /* Edit caption */
+  .btn-edit { padding: 5px 12px; border-radius: 7px; background: rgba(110,110,115,.1); color: var(--gray); border: 1px solid rgba(110,110,115,.18); font-size: .7rem; font-weight: 600; cursor: pointer; font-family: var(--font); transition: all .15s; }
+  .btn-edit:hover { background: rgba(110,110,115,.18); color: var(--ink2); }
+  .caption-edit-area { width: 100%; min-height: 140px; max-height: 320px; border: 1.5px solid var(--accent); border-radius: 8px; padding: 10px 12px; font-size: .77rem; font-family: var(--font); color: var(--ink); background: var(--surface); resize: vertical; line-height: 1.65; outline: none; }
+  .caption-edit-btns { display: flex; gap: 6px; margin-top: 8px; }
+  .btn-save-caption { padding: 5px 14px; border-radius: 7px; background: var(--accent); color: #fff; border: none; font-size: .7rem; font-weight: 600; cursor: pointer; font-family: var(--font); transition: background .15s; }
+  .btn-save-caption:hover { background: var(--accent2); }
+  .btn-cancel-edit { padding: 5px 12px; border-radius: 7px; background: transparent; color: var(--gray); border: 1px solid var(--border); font-size: .7rem; cursor: pointer; font-family: var(--font); }
+  .btn-reset-caption { background: none; border: none; color: var(--gray2); font-size: .65rem; cursor: pointer; font-family: var(--font); padding: 0 2px; text-decoration: underline; }
+  .btn-reset-caption:hover { color: #CC3228; }
+  .caption-edited-badge { font-size: .58rem; background: rgba(110,110,115,.12); color: var(--gray); border-radius: 4px; padding: 1px 6px; font-weight: 600; font-family: var(--font); margin-left: 6px; vertical-align: middle; }
+
   .kw-add-row { display: flex; gap: 8px; margin-bottom: 16px; }
   .kw-chips { display: flex; flex-wrap: wrap; gap: 7px; }
   .kw-chip { display: flex; align-items: center; gap: 5px; background: rgba(123,140,63,.1); border: 1px solid rgba(123,140,63,.25); border-radius: 20px; padding: 4px 12px 4px 14px; font-size: .78rem; color: #4a5e1a; font-family: var(--sans); }
@@ -647,6 +659,7 @@ const TODAY = new Date().toISOString().slice(0,10);
 let activeTab = 'research', isRunning = false;
 let calEvents = [], calView = 'month', calYear, calMonth;
 let reviewApprovals = {};
+let reviewCaptions = {};
 
 const TYPE_LABELS = { linkedin:'LI', facebook:'FB', instagram:'IG', youtube:'YT' };
 const ALL_TYPES = ['research','linkedin','facebook','instagram','youtube'];
@@ -922,8 +935,9 @@ let _calDates = {};
 
 async function loadReview() {
   document.getElementById('review-body').innerHTML = '<div class="review-empty">Loading review queue…</div>';
-  const [approvals, resR, liR, fbR, igR, ytR, calData] = await Promise.all([
+  const [approvals, captions, resR, liR, fbR, igR, ytR, calData] = await Promise.all([
     fetch('/api/approvals').then(r=>r.json()),
+    fetch('/api/captions').then(r=>r.json()),
     fetch('/api/output/research').then(r=>r.json()),
     fetch('/api/output/linkedin').then(r=>r.json()),
     fetch('/api/output/facebook').then(r=>r.json()),
@@ -932,6 +946,7 @@ async function loadReview() {
     fetch('/api/calendar').then(r=>r.json()),
   ]);
   reviewApprovals = approvals;
+  reviewCaptions = captions;
   _calDates = {};
   for (const ev of (calData.events || [])) _calDates[ev.id] = ev.date;
   updateReviewBadge();
@@ -1010,7 +1025,10 @@ function renderReviewCard(item) {
   const status = reviewApprovals[id] ?? 'pending';
   const pillLabel = status==='approved' ? '✓ Approved' : status==='rejected' ? '✗ Rejected' : '● Pending';
   const typeLabel = { linkedin:'LinkedIn', facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', research:'Research' }[type] || type;
-  const caption = extractCaption(content || '');
+  const rawCaption = extractCaption(content || '');
+  const editedCaption = reviewCaptions[id] ?? null;
+  const caption = editedCaption ?? rawCaption;
+  const isEdited = editedCaption != null;
   const tags = extractHashtags(content || '', title, type);
   const isPortrait = type === 'instagram';
   const imgCol = imageUrl ? `
@@ -1027,6 +1045,7 @@ function renderReviewCard(item) {
       ? `<span class="rcard-sched live" id="sched-${id}">📅 Checking schedule…</span>`
       : `<span class="rcard-sched" id="sched-${id}">Approve to schedule</span>`;
   const tagsHtml = tags.map(t=>`<span class="hashtag-chip">${escHtml(t)}</span>`).join('');
+  const editedBadge = isEdited ? `<span class="caption-edited-badge">Edited</span><button class="btn-reset-caption" onclick="resetCaption('${id}')" title="Reset to AI original">Reset</button>` : '';
 
   return `<div class="review-card ${status}" id="rcard-${id}">
     <div class="rcard-hd">
@@ -1038,8 +1057,15 @@ function renderReviewCard(item) {
       ${imgCol}
       <div class="rcard-content">
         <div>
-          <div class="rcard-field-label">Caption</div>
-          <div class="rcard-caption">${marked.parse(caption)}</div>
+          <div class="rcard-field-label">Caption ${editedBadge}</div>
+          <div class="rcard-caption" id="caption-view-${id}" data-raw="${escHtml(rawCaption)}">${marked.parse(caption)}</div>
+          <div id="caption-edit-${id}" style="display:none">
+            <textarea class="caption-edit-area" id="caption-ta-${id}">${escHtml(caption)}</textarea>
+            <div class="caption-edit-btns">
+              <button class="btn-save-caption" onclick="saveCaption('${id}')">Save</button>
+              <button class="btn-cancel-edit"  onclick="cancelEdit('${id}')">Cancel</button>
+            </div>
+          </div>
         </div>
         <div>
           <div class="rcard-field-label">Hashtags</div>
@@ -1050,11 +1076,48 @@ function renderReviewCard(item) {
     <div class="rcard-footer">
       ${schedHtml}
       <div class="rcard-actions">
+        <button class="btn-edit"    id="ebtn-${id}" onclick="startEdit('${id}')">Edit</button>
         <button class="btn-approve" id="abtn-${id}" onclick="doApprove('${id}')" ${status==='approved'?'disabled':''}>Approve</button>
         <button class="btn-reject"  id="rbtn-${id}" onclick="doReject('${id}')"  ${status==='rejected'?'disabled':''}>Reject</button>
       </div>
     </div>
   </div>`;
+}
+
+function startEdit(id) {
+  document.getElementById(`caption-view-${id}`).style.display = 'none';
+  document.getElementById(`caption-edit-${id}`).style.display = '';
+  document.getElementById(`ebtn-${id}`).style.display = 'none';
+  const ta = document.getElementById(`caption-ta-${id}`);
+  ta.focus(); ta.setSelectionRange(0, 0);
+}
+
+function cancelEdit(id) {
+  document.getElementById(`caption-view-${id}`).style.display = '';
+  document.getElementById(`caption-edit-${id}`).style.display = 'none';
+  document.getElementById(`ebtn-${id}`).style.display = '';
+}
+
+async function saveCaption(id) {
+  const caption = document.getElementById(`caption-ta-${id}`).value;
+  await fetch(`/api/captions/${id}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ caption }),
+  });
+  reviewCaptions[id] = caption;
+  cancelEdit(id);
+  // Update the displayed caption in-place
+  const view = document.getElementById(`caption-view-${id}`);
+  view.innerHTML = marked.parse(caption);
+  // Refresh card header to show Edited badge (re-render just the caption label row)
+  loadReview();
+}
+
+async function resetCaption(id) {
+  await fetch(`/api/captions/${id}`, { method: 'DELETE' });
+  delete reviewCaptions[id];
+  loadReview();
 }
 
 function refreshCard(id) {

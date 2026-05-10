@@ -5,6 +5,7 @@ import cron from 'node-cron';
 import { readLatestOutput, ensureOutputDirs } from './lib/storage.js';
 import { getSchedule, regenerateSchedule } from './lib/calendar.js';
 import { readApprovals, setApproval, bulkSetApproval } from './lib/approvals.js';
+import { readCaptions, setCaption, deleteCaption } from './lib/captions.js';
 import { readScheduleConfig, writeScheduleConfig, markLastRun } from './lib/pipeline-schedule.js';
 import { readInspirations, addInspiration, removeInspiration, readKeywords, addKeyword, removeKeyword } from './lib/inspiration.js';
 import path from 'path';
@@ -206,6 +207,19 @@ app.post('/api/keywords', express.json(), (req, res) => {
 app.delete('/api/keywords/:id', (req, res) => {
   removeKeyword(req.params.id);
   res.json({ ok: true });
+});
+
+// ── Captions (manual edits) ───────────────────────────────────────────────
+app.get('/api/captions', (req, res) => res.json(readCaptions()));
+
+app.post('/api/captions/:id', express.json(), (req, res) => {
+  const { caption } = req.body ?? {};
+  if (caption == null) return res.status(400).json({ error: 'caption required' });
+  res.json(setCaption(req.params.id, caption));
+});
+
+app.delete('/api/captions/:id', (req, res) => {
+  res.json(deleteCaption(req.params.id));
 });
 
 // GET /api/pipeline-schedule
