@@ -449,13 +449,97 @@
   .sched-save { width: 100%; background: rgba(123,140,63,.25); border: 1px solid rgba(123,140,63,.4); color: var(--olive2); font-size: .77rem; font-weight: 600; padding: 7px; border-radius: 6px; cursor: pointer; font-family: var(--sans); transition: background .15s; }
   .sched-save:hover { background: rgba(123,140,63,.4); }
   .sched-save.saved { background: rgba(123,140,63,.5); color: #fff; }
+
+  /* ── Hamburger (mobile only) ── */
+  #menu-btn {
+    display: none; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 8px; border: none;
+    background: rgba(255,255,255,.08); color: rgba(255,255,255,.8);
+    font-size: 1.1rem; cursor: pointer; flex-shrink: 0;
+    transition: background .15s;
+  }
+  #menu-btn:hover { background: rgba(255,255,255,.14); }
+
+  /* Sidebar overlay (mobile) */
+  #sidebar-overlay {
+    display: none; position: fixed; inset: 0; z-index: 40;
+    background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
+  }
+
+  /* ── Mobile breakpoint ── */
+  @media (max-width: 767px) {
+
+    /* Header: shorter title */
+    header { padding: 0 14px; }
+    header h1 { font-size: .78rem; }
+    .brand-dot, .brand-sub { display: none; }
+    #menu-btn { display: flex; }
+
+    /* Full-width single-column layout */
+    .layout { grid-template-columns: 1fr; }
+
+    /* Sidebar slides in as left drawer */
+    .sidebar {
+      position: fixed; top: 52px; left: 0; bottom: 0; z-index: 50;
+      width: 280px; transform: translateX(-100%);
+      transition: transform .25s var(--ease);
+      box-shadow: 6px 0 32px rgba(0,0,0,.35);
+    }
+    .sidebar.open { transform: translateX(0); }
+    #sidebar-overlay.open { display: block; }
+
+    /* Tabs: scrollable strip, smaller touch targets */
+    .tabs { padding: 0 6px; scrollbar-width: none; -ms-overflow-style: none; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab { padding: 12px 10px; font-size: .72rem; }
+
+    /* Main content panels: reduce padding */
+    .viewer { padding: 18px 16px; }
+    .review-wrap { padding: 16px 14px; }
+    .cal-wrap { padding: 12px 14px; }
+    .insp-wrap { padding: 16px 14px; }
+
+    /* Review cards: stack image above text */
+    .rcard-body { flex-direction: column; }
+    .rcard-img-col {
+      flex-direction: row; border-right: none;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 14px; gap: 10px; align-items: center;
+    }
+    .rcard-img, .rcard-img.portrait { width: 72px; height: 72px; }
+    .rcard-hd { flex-wrap: wrap; gap: 6px; }
+    .rcard-footer { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .rcard-actions { width: 100%; justify-content: flex-end; }
+
+    /* Calendar toolbar: wrap nicely */
+    .cal-toolbar { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .cal-title { font-size: .9rem; min-width: 0; }
+    .cal-day { min-height: 60px; padding: 5px; }
+    .event-chip { font-size: .58rem; padding: 2px 4px; }
+
+    /* Inspiration: stack add row */
+    .insp-add-row { flex-direction: column; }
+    .insp-input-sm { flex: 1; }
+
+    /* Markdown viewer */
+    .md-content h1 { font-size: 1.15rem; }
+    .md-content h2 { font-size: .9rem; }
+    .md-content table { font-size: .74rem; }
+    .md-content th, .md-content td { padding: 6px 8px; }
+
+    /* Review section header */
+    .review-section-hd { flex-direction: column; align-items: flex-start; }
+    .bulk-actions { width: 100%; }
+    .btn-approve-all, .btn-reject-all { flex: 1; text-align: center; }
+  }
 </style>
 </head>
 <body>
 
 <header>
   <div class="header-left">
-    <h1><strong>Sophie's</strong> Automated Content Planner <span class="brand-dot">·</span> Paramount Tax Richardson</h1>
+    <button id="menu-btn" onclick="toggleSidebar()" aria-label="Menu">&#9776;</button>
+    <h1><strong>Sophie's</strong> <span class="brand-sub">Automated Content Planner</span><span class="brand-dot"> · </span><span class="brand-sub">Paramount Tax Richardson</span></h1>
   </div>
   <span id="model-badge">loading…</span>
 </header>
@@ -463,7 +547,8 @@
 <div class="layout">
 
   <!-- ── Sidebar ── -->
-  <aside class="sidebar">
+  <div id="sidebar-overlay" onclick="closeSidebar()"></div>
+  <aside class="sidebar" id="sidebar">
     <div class="sidebar-section">
       <h2>Pipeline</h2>
       <div class="btn-grid">
@@ -657,6 +742,17 @@
 <script>
 const TODAY = new Date().toISOString().slice(0,10);
 let activeTab = 'research', isRunning = false;
+
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sidebar-overlay');
+  const open = sb.classList.toggle('open');
+  ov.classList.toggle('open', open);
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
+}
 let calEvents = [], calView = 'month', calYear, calMonth;
 let reviewApprovals = {};
 let reviewCaptions = {};
@@ -688,7 +784,7 @@ async function boot() {
 }
 
 // ── Tabs ──────────────────────────────────────────────────────
-document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => { closeSidebar(); switchTab(t.dataset.tab); }));
 
 async function switchTab(name) {
   activeTab = name;
@@ -716,7 +812,7 @@ async function switchTab(name) {
 // ── Pipeline ──────────────────────────────────────────────────
 document.querySelectorAll('[data-script]').forEach(btn => {
   if (btn.dataset.script === 'calendar') return;
-  btn.addEventListener('click', () => runScript(btn.dataset.script));
+  btn.addEventListener('click', () => { closeSidebar(); runScript(btn.dataset.script); });
 });
 
 function runScript(name) {
