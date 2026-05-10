@@ -1,21 +1,21 @@
-import { getDb } from './db.js';
+import { readDb, writeDb } from './storage.js';
 
-const COLL = 'captions';
+const DB = 'captions';
 
-export async function readCaptions() {
-  const db = await getDb();
-  const docs = await db.collection(COLL).find().toArray();
-  return Object.fromEntries(docs.map(d => [d._id, d.caption]));
+export function readCaptions() {
+  return readDb(DB);
 }
 
-export async function setCaption(id, caption) {
-  const db = await getDb();
-  await db.collection(COLL).updateOne({ _id: id }, { $set: { caption } }, { upsert: true });
+export function setCaption(id, caption) {
+  const store = readDb(DB);
+  store[id] = caption;
+  writeDb(DB, store);
   return readCaptions();
 }
 
-export async function deleteCaption(id) {
-  const db = await getDb();
-  await db.collection(COLL).deleteOne({ _id: id });
+export function deleteCaption(id) {
+  const store = readDb(DB);
+  delete store[id];
+  writeDb(DB, store);
   return readCaptions();
 }

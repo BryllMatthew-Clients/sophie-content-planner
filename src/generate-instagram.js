@@ -4,7 +4,6 @@ import path from 'path';
 import { ensureOutputDirs, readLatestOutput, writeOutput, readLatestJson } from './lib/storage.js';
 import { parsePostForImage, generateImages, closeBrowser } from './lib/image-gen.js';
 import { markPending } from './lib/approvals.js';
-import { closeDb } from './lib/db.js';
 
 const DISCLAIMER = `\n\n*This content is for educational purposes only and does not constitute specific legal, tax, or financial advice. Consult a qualified tax professional for guidance tailored to your situation.*`;
 
@@ -78,4 +77,4 @@ async function main() {
 
 main()
   .catch(err => { console.error('Instagram generator failed:', err.message); process.exit(1); })
-  .finally(() => closeDb());
+  .catch(err => { console.error('Instagram script failed:', err.message); process.exit(1); });

@@ -1,42 +1,37 @@
-import { getDb } from './db.js';
+import { readDb, writeDb } from './storage.js';
 
-const COLL = 'approvals';
+const DB = 'approvals';
 
-export async function readApprovals() {
-  const db = await getDb();
-  const docs = await db.collection(COLL).find().toArray();
-  return Object.fromEntries(docs.map(d => [d._id, d.status]));
+export function readApprovals() {
+  return readDb(DB);
 }
 
-export async function setApproval(id, status) {
-  const db = await getDb();
-  await db.collection(COLL).updateOne({ _id: id }, { $set: { status } }, { upsert: true });
+export function setApproval(id, status) {
+  const store = readDb(DB);
+  store[id] = status;
+  writeDb(DB, store);
   return readApprovals();
 }
 
-// Called by generators — resets that type to all-pending
-export async function markPending(type, count) {
-  const db = await getDb();
-  const coll = db.collection(COLL);
-  if (type === 'research') {
-    await coll.updateOne({ _id: 'research' }, { $set: { status: 'pending' } }, { upsert: true });
-  } else {
-    await coll.deleteMany({ _id: { $regex: `^${type}-` } });
-    if (count > 0) {
-      await coll.insertMany(
-        Array.from({ length: count }, (_, i) => ({ _id: `${type}-${i + 1}`, status: 'pending' }))
-      );
-    }
+export function markPending(type, count) {
+  const store = readDb(DB);
+  // Remove all keys for this type
+  for (const key of Object.keys(store)) {
+    if (key === type || key.startsWith(`${type}-`)) delete store[key];
   }
+  if (type === 'research') {
+    store['research'] = 'pending';
+  } else {
+    for (let i = 1; i <= count; i++) store[`${type}-${i}`] = 'pending';
+  }
+  writeDb(DB, store);
 }
 
-export async function bulkSetApproval(type, status) {
-  const db = await getDb();
-  const coll = db.collection(COLL);
-  if (type === 'research') {
-    await coll.updateOne({ _id: 'research' }, { $set: { status } }, { upsert: true });
-  } else {
-    await coll.updateMany({ _id: { $regex: `^${type}-` } }, { $set: { status } });
+export function bulkSetApproval(type, status) {
+  const store = readDb(DB);
+  for (const key of Object.keys(store)) {
+    if (key === type || key.startsWith(`${type}-`)) store[key] = status;
   }
+  writeDb(DB, store);
   return readApprovals();
 }

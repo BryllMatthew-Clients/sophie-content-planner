@@ -1,20 +1,31 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getDb } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 
-const COLL = 'outputs';
-
-function getOutputDir() {
+export function getOutputDir() {
   return process.env.OUTPUT_DIR
     ? path.resolve(process.env.OUTPUT_DIR)
     : path.join(PROJECT_ROOT, 'output');
 }
 
-// Images and JSON indexes still go to disk
+function dbFile(name) {
+  return path.join(getOutputDir(), '.db', `${name}.json`);
+}
+
+function readDb(name) {
+  try { return JSON.parse(fs.readFileSync(dbFile(name), 'utf8')); }
+  catch { return {}; }
+}
+
+function writeDb(name, data) {
+  const f = dbFile(name);
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(f, JSON.stringify(data, null, 2), 'utf8');
+}
+
 export function ensureOutputDirs() {
   const base = getOutputDir();
   for (const sub of ['images']) {
@@ -23,7 +34,6 @@ export function ensureOutputDirs() {
   }
 }
 
-// Image index JSON files (small, image-related — stay on disk)
 export function readLatestJson(type) {
   const dir = path.join(getOutputDir(), type);
   if (!fs.existsSync(dir)) return null;
@@ -33,22 +43,16 @@ export function readLatestJson(type) {
   catch { return null; }
 }
 
-// Generated markdown content → MongoDB
-export async function writeOutput(type, content) {
-  const generatedAt = new Date().toISOString();
-  const db = await getDb();
-  await db.collection(COLL).updateOne(
-    { _id: type },
-    { $set: { content, generatedAt } },
-    { upsert: true }
-  );
-  return `mongodb://outputs/${type}`;
+export function writeOutput(type, content) {
+  const store = readDb('outputs');
+  store[type] = { content, generatedAt: new Date().toISOString() };
+  writeDb('outputs', store);
+  return `file://outputs/${type}`;
 }
 
-export async function readLatestOutput(type) {
-  const db = await getDb();
-  const doc = await db.collection(COLL).findOne({ _id: type });
-  return doc?.content ?? null;
+export function readLatestOutput(type) {
+  const store = readDb('outputs');
+  return store[type]?.content ?? null;
 }
 
 export function readPrompt(filename) {
@@ -58,3 +62,6 @@ export function readPrompt(filename) {
 export function readClaudeMd() {
   return fs.readFileSync(path.join(PROJECT_ROOT, 'CLAUDE.md'), 'utf8');
 }
+
+// Exposed so other libs can share the same .db directory
+export { readDb, writeDb };

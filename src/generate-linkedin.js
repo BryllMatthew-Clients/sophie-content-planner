@@ -8,7 +8,6 @@ import { markPending } from './lib/approvals.js';
 import { pickTopicsForPlatform, pickAnglesForRun, ANGLES } from './lib/topic-pool.js';
 import { buildAvoidList, recordGeneration } from './lib/history.js';
 import { buildInspirationContext } from './lib/inspiration.js';
-import { closeDb } from './lib/db.js';
 
 const DISCLAIMER = `\n---\n*This content is for educational purposes only and does not constitute specific legal, tax, or financial advice. Consult a qualified tax professional for guidance tailored to your situation.*`;
 
@@ -83,4 +82,4 @@ async function main() {
 
 main()
   .catch(err => { console.error('LinkedIn generator failed:', err.message); process.exit(1); })
-  .finally(() => closeDb());
+  .catch(err => { console.error('LinkedIn script failed:', err.message); process.exit(1); });

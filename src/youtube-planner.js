@@ -4,7 +4,6 @@ import { ensureOutputDirs, readLatestOutput, writeOutput } from './lib/storage.j
 import { markPending } from './lib/approvals.js';
 import { pickTopicsForPlatform } from './lib/topic-pool.js';
 import { buildAvoidList, recordGeneration } from './lib/history.js';
-import { closeDb } from './lib/db.js';
 
 async function main() {
   ensureOutputDirs();
@@ -46,4 +45,4 @@ async function main() {
 
 main()
   .catch(err => { console.error('YouTube planner failed:', err.message); process.exit(1); })
-  .finally(() => closeDb());
+  .catch(err => { console.error('YouTube script failed:', err.message); process.exit(1); });

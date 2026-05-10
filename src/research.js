@@ -7,7 +7,6 @@ import { markPending } from './lib/approvals.js';
 import { pickTopicsForPlatform, pickSearchQueries } from './lib/topic-pool.js';
 import { buildAvoidList, recordGeneration } from './lib/history.js';
 import { getCustomKeywords, buildInspirationContext, buildInspirationContentForResearch } from './lib/inspiration.js';
-import { closeDb } from './lib/db.js';
 
 const SUBREDDITS = [
   'tax',
@@ -116,6 +115,4 @@ async function main() {
   console.log(`Research brief saved to: ${filePath}`);
 }
 
-main()
-  .catch(err => { console.error('Research script failed:', err.message); process.exit(1); })
-  .finally(() => closeDb());
+main().catch(err => { console.error('Research script failed:', err.message); process.exit(1); });

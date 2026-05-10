@@ -1,7 +1,6 @@
-import { getDb } from './db.js';
+import { readDb, writeDb } from './storage.js';
 
-const COLL = 'schedule';
-const DOC_ID = 'config';
+const DB = 'schedule';
 
 const DEFAULTS = {
   enabled: false,
@@ -11,34 +10,16 @@ const DEFAULTS = {
   lastRun: null,
 };
 
-export async function readScheduleConfig() {
-  try {
-    const db = await getDb();
-    const doc = await db.collection(COLL).findOne({ _id: DOC_ID });
-    return { ...DEFAULTS, ...(doc ?? {}) };
-  } catch {
-    return { ...DEFAULTS };
-  }
+export function readScheduleConfig() {
+  const stored = readDb(DB);
+  return { ...DEFAULTS, ...stored };
 }
 
-export async function writeScheduleConfig(config) {
-  const db = await getDb();
-  await db.collection(COLL).updateOne(
-    { _id: DOC_ID },
-    { $set: { ...config, _id: DOC_ID } },
-    { upsert: true }
-  );
+export function writeScheduleConfig(config) {
+  writeDb(DB, config);
 }
 
-export async function markLastRun() {
-  try {
-    const db = await getDb();
-    await db.collection(COLL).updateOne(
-      { _id: DOC_ID },
-      { $set: { lastRun: new Date().toISOString() } },
-      { upsert: true }
-    );
-  } catch (err) {
-    console.error('[Schedule] Could not mark last run:', err.message);
-  }
+export function markLastRun() {
+  const config = readScheduleConfig();
+  writeDb(DB, { ...config, lastRun: new Date().toISOString() });
 }

@@ -248,7 +248,4 @@ app.post('/api/pipeline-schedule', express.json(), async (req, res) => {
 
 ensureOutputDirs();
 app.listen(PORT, () => console.log(`Sophie's Automated Content Planner → http://localhost:${PORT}`));
-// Initialize cron from persisted config (async — runs after server starts)
-readScheduleConfig()
-  .then(cfg => applySchedule(cfg))
-  .catch(err => console.error('[Schedule] Could not load config:', err.message));
+try { applySchedule(readScheduleConfig()); } catch (err) { console.error('[Schedule] Could not load config:', err.message); }

@@ -1,38 +1,37 @@
-import { getDb } from './db.js';
+import { readDb, writeDb } from './storage.js';
 
-const COLL = 'history';
+const DB = 'history';
 
-async function getRecentEntries(days) {
+function getRecentEntries(days) {
   const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
-  const db = await getDb();
-  return db.collection(COLL).find({ _id: { $gte: cutoff } }).toArray();
+  const store = readDb(DB);
+  return Object.entries(store)
+    .filter(([date]) => date >= cutoff)
+    .map(([, entry]) => entry);
 }
 
-export async function getRecentTopics(days = 30) {
-  const entries = await getRecentEntries(days);
-  return entries.flatMap(e => e.topics ?? []);
+export function getRecentTopics(days = 30) {
+  return getRecentEntries(days).flatMap(e => e.topics ?? []);
 }
 
-export async function getRecentAngles(days = 14) {
-  const entries = await getRecentEntries(days);
-  return entries.flatMap(e => e.angles ?? []);
+export function getRecentAngles(days = 14) {
+  return getRecentEntries(days).flatMap(e => e.angles ?? []);
 }
 
-export async function buildAvoidList(days = 30) {
-  const topics = await getRecentTopics(days);
+export function buildAvoidList(days = 30) {
+  const topics = getRecentTopics(days);
   if (!topics.length) return '';
   return `\n\nIMPORTANT — Recently covered topics (do NOT repeat or closely overlap with these):\n${topics.map(t => `  • ${t}`).join('\n')}\n`;
 }
 
-export async function recordGeneration({ topics = [], angles = [] }) {
+export function recordGeneration({ topics = [], angles = [] }) {
   const date = new Date().toISOString().slice(0, 10);
-  const db = await getDb();
-  await db.collection(COLL).updateOne(
-    { _id: date },
-    { $set: { topics, angles } },
-    { upsert: true }
-  );
+  const store = readDb(DB);
+  store[date] = { topics, angles };
   // Trim entries older than 90 days
   const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
-  await db.collection(COLL).deleteMany({ _id: { $lt: cutoff } });
+  for (const key of Object.keys(store)) {
+    if (key < cutoff) delete store[key];
+  }
+  writeDb(DB, store);
 }
