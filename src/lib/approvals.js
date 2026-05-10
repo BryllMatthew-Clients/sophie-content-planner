@@ -1,54 +1,42 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { getDb } from './db.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, '..', '..');
-const APPROVALS_PATH = path.join(ROOT, 'output', 'approvals.json');
+const COLL = 'approvals';
 
-export function readApprovals() {
-  if (!fs.existsSync(APPROVALS_PATH)) return {};
-  try { return JSON.parse(fs.readFileSync(APPROVALS_PATH, 'utf8')); }
-  catch { return {}; }
+export async function readApprovals() {
+  const db = await getDb();
+  const docs = await db.collection(COLL).find().toArray();
+  return Object.fromEntries(docs.map(d => [d._id, d.status]));
 }
 
-function writeApprovals(data) {
-  fs.mkdirSync(path.dirname(APPROVALS_PATH), { recursive: true });
-  fs.writeFileSync(APPROVALS_PATH, JSON.stringify(data, null, 2));
+export async function setApproval(id, status) {
+  const db = await getDb();
+  await db.collection(COLL).updateOne({ _id: id }, { $set: { status } }, { upsert: true });
+  return readApprovals();
 }
 
-export function setApproval(id, status) {
-  const data = readApprovals();
-  data[id] = status;
-  writeApprovals(data);
-  return data;
-}
-
-// Called by generators after saving output — resets that type to all-pending
-export function markPending(type, count) {
-  const data = readApprovals();
+// Called by generators — resets that type to all-pending
+export async function markPending(type, count) {
+  const db = await getDb();
+  const coll = db.collection(COLL);
   if (type === 'research') {
-    data['research'] = 'pending';
+    await coll.updateOne({ _id: 'research' }, { $set: { status: 'pending' } }, { upsert: true });
   } else {
-    for (const key of Object.keys(data)) {
-      if (key.startsWith(type + '-')) delete data[key];
-    }
-    for (let i = 1; i <= count; i++) {
-      data[`${type}-${i}`] = 'pending';
+    await coll.deleteMany({ _id: { $regex: `^${type}-` } });
+    if (count > 0) {
+      await coll.insertMany(
+        Array.from({ length: count }, (_, i) => ({ _id: `${type}-${i + 1}`, status: 'pending' }))
+      );
     }
   }
-  writeApprovals(data);
 }
 
-export function bulkSetApproval(type, status) {
-  const data = readApprovals();
+export async function bulkSetApproval(type, status) {
+  const db = await getDb();
+  const coll = db.collection(COLL);
   if (type === 'research') {
-    data['research'] = status;
+    await coll.updateOne({ _id: 'research' }, { $set: { status } }, { upsert: true });
   } else {
-    for (const key of Object.keys(data)) {
-      if (key.startsWith(type + '-')) data[key] = status;
-    }
+    await coll.updateMany({ _id: { $regex: `^${type}-` } }, { $set: { status } });
   }
-  writeApprovals(data);
-  return data;
+  return readApprovals();
 }

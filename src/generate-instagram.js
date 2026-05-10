@@ -4,6 +4,7 @@ import path from 'path';
 import { ensureOutputDirs, readLatestOutput, writeOutput, readLatestJson } from './lib/storage.js';
 import { parsePostForImage, generateImages, closeBrowser } from './lib/image-gen.js';
 import { markPending } from './lib/approvals.js';
+import { closeDb } from './lib/db.js';
 
 const DISCLAIMER = `\n\n*This content is for educational purposes only and does not constitute specific legal, tax, or financial advice. Consult a qualified tax professional for guidance tailored to your situation.*`;
 
@@ -21,7 +22,7 @@ function extractTopicsAndPosts(md) {
 async function main() {
   ensureOutputDirs();
 
-  const linkedInMd = readLatestOutput('linkedin');
+  const linkedInMd = await readLatestOutput('linkedin');
   if (!linkedInMd) {
     console.error('No LinkedIn output found. Run `npm run generate-linkedin` first.');
     process.exit(1);
@@ -35,9 +36,7 @@ async function main() {
 
   console.log(`Generating Instagram content from ${posts.length} LinkedIn posts...`);
 
-  // Load existing LinkedIn image index so we know which images already exist
   const existingIndex = readLatestJson('linkedin') ?? {};
-
   const imageIndex = {};
   const instaPosts = [];
 
@@ -45,7 +44,6 @@ async function main() {
     const i = post.index;
     process.stdout.write(`  Post ${i} — ${post.title.slice(0, 35)}...`);
 
-    // Reuse portrait image if LinkedIn already generated it
     const existing = existingIndex[i];
     if (existing?.portrait) {
       imageIndex[i] = { portrait: existing.portrait };
@@ -67,17 +65,17 @@ async function main() {
   const header = `# Sophie Nguyen — Instagram Posts\nGenerated: ${date}\nSource: ${researchDate}-linkedin.md\n\n---\n\n`;
   const mdContent = header + instaPosts.join('\n\n---\n\n');
 
-  const filePath = writeOutput('instagram', mdContent);
+  const filePath = await writeOutput('instagram', mdContent);
 
-  // Save image index alongside
-  const jsonPath = path.join(path.dirname(filePath), `${date}-instagram-images.json`);
+  const imgDir = path.join(process.env.OUTPUT_DIR || 'output', 'instagram');
+  fs.mkdirSync(imgDir, { recursive: true });
+  const jsonPath = path.join(imgDir, `${date}-instagram-images.json`);
   fs.writeFileSync(jsonPath, JSON.stringify(imageIndex, null, 2));
 
-  markPending('instagram', posts.length);
+  await markPending('instagram', posts.length);
   console.log(`\n${posts.length} Instagram posts saved to: ${filePath}`);
 }
 
-main().catch(err => {
-  console.error('Instagram generator failed:', err.message);
-  process.exit(1);
-});
+main()
+  .catch(err => { console.error('Instagram generator failed:', err.message); process.exit(1); })
+  .finally(() => closeDb());

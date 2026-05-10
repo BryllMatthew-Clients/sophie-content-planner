@@ -1,9 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getDb } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
+
+const COLL = 'outputs';
 
 function getOutputDir() {
   return process.env.OUTPUT_DIR
@@ -11,15 +14,16 @@ function getOutputDir() {
     : path.join(PROJECT_ROOT, 'output');
 }
 
+// Images and JSON indexes still go to disk
 export function ensureOutputDirs() {
   const base = getOutputDir();
-  for (const sub of ['research', 'linkedin', 'facebook', 'instagram', 'youtube']) {
-    fs.mkdirSync(path.join(base, sub), { recursive: true });
+  for (const sub of ['images']) {
+    fs.mkdirSync(path.join(base, sub, 'linkedin'),  { recursive: true });
+    fs.mkdirSync(path.join(base, sub, 'instagram'), { recursive: true });
   }
-  fs.mkdirSync(path.join(base, 'images', 'linkedin'),  { recursive: true });
-  fs.mkdirSync(path.join(base, 'images', 'instagram'), { recursive: true });
 }
 
+// Image index JSON files (small, image-related — stay on disk)
 export function readLatestJson(type) {
   const dir = path.join(getOutputDir(), type);
   if (!fs.existsSync(dir)) return null;
@@ -29,29 +33,26 @@ export function readLatestJson(type) {
   catch { return null; }
 }
 
-export function writeOutput(type, content) {
-  const date = new Date().toISOString().slice(0, 10);
-  const dir = path.join(getOutputDir(), type);
-  fs.mkdirSync(dir, { recursive: true });
-  const filePath = path.join(dir, `${date}-${type}.md`);
-  fs.writeFileSync(filePath, content, 'utf8');
-  return filePath;
+// Generated markdown content → MongoDB
+export async function writeOutput(type, content) {
+  const generatedAt = new Date().toISOString();
+  const db = await getDb();
+  await db.collection(COLL).updateOne(
+    { _id: type },
+    { $set: { content, generatedAt } },
+    { upsert: true }
+  );
+  return `mongodb://outputs/${type}`;
 }
 
-export function readLatestOutput(type) {
-  const dir = path.join(getOutputDir(), type);
-  if (!fs.existsSync(dir)) return null;
-  const files = fs.readdirSync(dir)
-    .filter(f => f.endsWith('.md'))
-    .sort();
-  if (!files.length) return null;
-  const latest = path.join(dir, files[files.length - 1]);
-  return fs.readFileSync(latest, 'utf8');
+export async function readLatestOutput(type) {
+  const db = await getDb();
+  const doc = await db.collection(COLL).findOne({ _id: type });
+  return doc?.content ?? null;
 }
 
 export function readPrompt(filename) {
-  const promptPath = path.join(PROJECT_ROOT, 'prompts', filename);
-  return fs.readFileSync(promptPath, 'utf8');
+  return fs.readFileSync(path.join(PROJECT_ROOT, 'prompts', filename), 'utf8');
 }
 
 export function readClaudeMd() {

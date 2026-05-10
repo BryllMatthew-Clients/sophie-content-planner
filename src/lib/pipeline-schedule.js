@@ -1,9 +1,7 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { getDb } from './db.js';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const CONFIG_PATH = path.join(ROOT, 'output', 'pipeline-schedule.json');
+const COLL = 'schedule';
+const DOC_ID = 'config';
 
 const DEFAULTS = {
   enabled: false,
@@ -13,19 +11,34 @@ const DEFAULTS = {
   lastRun: null,
 };
 
-export function readScheduleConfig() {
-  if (!fs.existsSync(CONFIG_PATH)) return { ...DEFAULTS };
-  try { return { ...DEFAULTS, ...JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')) }; }
-  catch { return { ...DEFAULTS }; }
+export async function readScheduleConfig() {
+  try {
+    const db = await getDb();
+    const doc = await db.collection(COLL).findOne({ _id: DOC_ID });
+    return { ...DEFAULTS, ...(doc ?? {}) };
+  } catch {
+    return { ...DEFAULTS };
+  }
 }
 
-export function writeScheduleConfig(config) {
-  fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+export async function writeScheduleConfig(config) {
+  const db = await getDb();
+  await db.collection(COLL).updateOne(
+    { _id: DOC_ID },
+    { $set: { ...config, _id: DOC_ID } },
+    { upsert: true }
+  );
 }
 
-export function markLastRun() {
-  const config = readScheduleConfig();
-  config.lastRun = new Date().toISOString();
-  writeScheduleConfig(config);
+export async function markLastRun() {
+  try {
+    const db = await getDb();
+    await db.collection(COLL).updateOne(
+      { _id: DOC_ID },
+      { $set: { lastRun: new Date().toISOString() } },
+      { upsert: true }
+    );
+  } catch (err) {
+    console.error('[Schedule] Could not mark last run:', err.message);
+  }
 }

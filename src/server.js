@@ -88,27 +88,27 @@ app.use(express.static(path.join(ROOT, 'public')));
 app.use('/images', express.static(path.join(ROOT, 'output', 'images')));
 
 // GET /api/output/:type
-app.get('/api/output/:type', (req, res) => {
+app.get('/api/output/:type', async (req, res) => {
   const { type } = req.params;
   if (!OUTPUT_TYPES.includes(type)) return res.status(400).json({ error: 'Unknown output type' });
-  res.json({ content: readLatestOutput(type) ?? null });
+  res.json({ content: (await readLatestOutput(type)) ?? null });
 });
 
 // GET /api/approvals
-app.get('/api/approvals', (req, res) => res.json(readApprovals()));
+app.get('/api/approvals', async (req, res) => res.json(await readApprovals()));
 
 // POST /api/approvals/bulk/:type  — must be before /:id to avoid route conflict
-app.post('/api/approvals/bulk/:type', express.json(), (req, res) => {
+app.post('/api/approvals/bulk/:type', express.json(), async (req, res) => {
   const { status } = req.body ?? {};
   if (!['approved', 'rejected', 'pending'].includes(status)) return res.status(400).json({ error: 'invalid status' });
-  res.json(bulkSetApproval(req.params.type, status));
+  res.json(await bulkSetApproval(req.params.type, status));
 });
 
 // POST /api/approvals/:id
-app.post('/api/approvals/:id', express.json(), (req, res) => {
+app.post('/api/approvals/:id', express.json(), async (req, res) => {
   const { status } = req.body ?? {};
   if (!['approved', 'rejected', 'pending'].includes(status)) return res.status(400).json({ error: 'invalid status' });
-  res.json(setApproval(req.params.id, status));
+  res.json(await setApproval(req.params.id, status));
 });
 
 // GET /api/calendar
@@ -124,9 +124,9 @@ app.post('/api/calendar/regenerate', (req, res) => {
 });
 
 // GET /api/status
-app.get('/api/status', (req, res) => {
+app.get('/api/status', async (req, res) => {
   const outputs = {};
-  for (const type of OUTPUT_TYPES) outputs[type] = readLatestOutput(type) !== null;
+  await Promise.all(OUTPUT_TYPES.map(async t => { outputs[t] = (await readLatestOutput(t)) !== null; }));
   res.json({ ollamaModel: process.env.OLLAMA_MODEL || null, mock: process.env.MOCK === 'true', outputs });
 });
 
@@ -180,7 +180,7 @@ async function runSequence(names, res) {
 }
 
 // ── Inspiration & Keywords ────────────────────────────────────────────────
-app.get('/api/inspiration', (req, res) => res.json(readInspirations()));
+app.get('/api/inspiration', async (req, res) => res.json(await readInspirations()));
 
 app.post('/api/inspiration', express.json(), async (req, res) => {
   const { url, label } = req.body ?? {};
@@ -191,56 +191,59 @@ app.post('/api/inspiration', express.json(), async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/inspiration/:id', (req, res) => {
-  removeInspiration(req.params.id);
+app.delete('/api/inspiration/:id', async (req, res) => {
+  await removeInspiration(req.params.id);
   res.json({ ok: true });
 });
 
-app.get('/api/keywords', (req, res) => res.json(readKeywords()));
+app.get('/api/keywords', async (req, res) => res.json(await readKeywords()));
 
-app.post('/api/keywords', express.json(), (req, res) => {
+app.post('/api/keywords', express.json(), async (req, res) => {
   const { keyword } = req.body ?? {};
   if (!keyword?.trim()) return res.status(400).json({ error: 'keyword required' });
-  res.json(addKeyword(keyword));
+  res.json(await addKeyword(keyword));
 });
 
-app.delete('/api/keywords/:id', (req, res) => {
-  removeKeyword(req.params.id);
+app.delete('/api/keywords/:id', async (req, res) => {
+  await removeKeyword(req.params.id);
   res.json({ ok: true });
 });
 
 // ── Captions (manual edits) ───────────────────────────────────────────────
-app.get('/api/captions', (req, res) => res.json(readCaptions()));
+app.get('/api/captions', async (req, res) => res.json(await readCaptions()));
 
-app.post('/api/captions/:id', express.json(), (req, res) => {
+app.post('/api/captions/:id', express.json(), async (req, res) => {
   const { caption } = req.body ?? {};
   if (caption == null) return res.status(400).json({ error: 'caption required' });
-  res.json(setCaption(req.params.id, caption));
+  res.json(await setCaption(req.params.id, caption));
 });
 
-app.delete('/api/captions/:id', (req, res) => {
-  res.json(deleteCaption(req.params.id));
+app.delete('/api/captions/:id', async (req, res) => {
+  res.json(await deleteCaption(req.params.id));
 });
 
 // GET /api/pipeline-schedule
-app.get('/api/pipeline-schedule', (req, res) => res.json(readScheduleConfig()));
+app.get('/api/pipeline-schedule', async (req, res) => res.json(await readScheduleConfig()));
 
 // POST /api/pipeline-schedule
-app.post('/api/pipeline-schedule', express.json(), (req, res) => {
+app.post('/api/pipeline-schedule', express.json(), async (req, res) => {
   const { enabled, hour, minute, timezone } = req.body ?? {};
+  const existing = await readScheduleConfig();
   const config = {
-    ...readScheduleConfig(),
+    ...existing,
     enabled: !!enabled,
     hour: Math.max(0, Math.min(23, parseInt(hour) || 9)),
     minute: Math.max(0, Math.min(59, parseInt(minute) || 0)),
     timezone: timezone || 'America/Chicago',
   };
-  writeScheduleConfig(config);
+  await writeScheduleConfig(config);
   applySchedule(config);
   res.json(config);
 });
 
 ensureOutputDirs();
-// Initialize cron from persisted config
-applySchedule(readScheduleConfig());
 app.listen(PORT, () => console.log(`Sophie's Automated Content Planner → http://localhost:${PORT}`));
+// Initialize cron from persisted config (async — runs after server starts)
+readScheduleConfig()
+  .then(cfg => applySchedule(cfg))
+  .catch(err => console.error('[Schedule] Could not load config:', err.message));

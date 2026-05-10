@@ -5,6 +5,7 @@ import { markPending } from './lib/approvals.js';
 import { pickTopicsForPlatform, pickAnglesForRun, ANGLES } from './lib/topic-pool.js';
 import { buildAvoidList, recordGeneration } from './lib/history.js';
 import { buildInspirationContext } from './lib/inspiration.js';
+import { closeDb } from './lib/db.js';
 
 const DISCLAIMER = `\n\n*This content is for educational purposes only and does not constitute specific legal, tax, or financial advice. Consult a qualified tax professional for guidance tailored to your situation.*`;
 
@@ -24,7 +25,7 @@ async function generatePost(topicObj, angleKey, researchContext, systemParts, in
 async function main() {
   ensureOutputDirs();
 
-  const researchBrief = readLatestOutput('research');
+  const researchBrief = await readLatestOutput('research');
   if (!researchBrief) {
     console.error('No research brief found. Run `npm run research` first.');
     process.exit(1);
@@ -32,7 +33,8 @@ async function main() {
 
   const selectedTopics = pickTopicsForPlatform('facebook', 5);
   const selectedAngles = pickAnglesForRun(5);
-  const researchContext = researchBrief.slice(0, 3000) + buildAvoidList(30) + buildInspirationContext();
+  const [avoidList, inspirationCtx] = await Promise.all([buildAvoidList(30), buildInspirationContext()]);
+  const researchContext = researchBrief.slice(0, 3000) + avoidList + inspirationCtx;
 
   console.log(`Generating 5 Facebook posts:\n${selectedTopics.map((t, i) => `  ${i + 1}. [${selectedAngles[i]}] ${t.topic}`).join('\n')}\n`);
 
@@ -52,13 +54,12 @@ async function main() {
   const header = `# Sophie Nguyen — Facebook Posts\nGenerated: ${date}\nResearch Source: ${researchDate}-research.md\n\n---\n\n`;
   const content = header + posts.join('\n\n---\n\n');
 
-  const filePath = writeOutput('facebook', content);
-  markPending('facebook', posts.length);
-  recordGeneration({ topics: selectedTopics.map(t => t.topic), angles: selectedAngles });
+  const filePath = await writeOutput('facebook', content);
+  await markPending('facebook', posts.length);
+  await recordGeneration({ topics: selectedTopics.map(t => t.topic), angles: selectedAngles });
   console.log(`\n5 Facebook posts saved to: ${filePath}`);
 }
 
-main().catch(err => {
-  console.error('Facebook generator failed:', err.message);
-  process.exit(1);
-});
+main()
+  .catch(err => { console.error('Facebook generator failed:', err.message); process.exit(1); })
+  .finally(() => closeDb());

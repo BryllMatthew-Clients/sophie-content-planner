@@ -1,29 +1,16 @@
-import fs from 'fs';
-import path from 'path';
 import crypto from 'crypto';
-import { fileURLToPath } from 'url';
+import { getDb } from './db.js';
 
-const ROOT     = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const INSP_PATH = path.join(ROOT, 'output', 'inspiration.json');
-const KW_PATH   = path.join(ROOT, 'output', 'keywords.json');
-
-function readJson(p, def) {
-  if (!fs.existsSync(p)) return def;
-  try { return JSON.parse(fs.readFileSync(p, 'utf8')); }
-  catch { return def; }
-}
-function writeJson(p, data) {
-  fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(p, JSON.stringify(data, null, 2));
-}
+const COLL_INS = 'inspirations';
+const COLL_KW  = 'keywords';
 
 function detectPlatform(url) {
-  if (/instagram\.com/i.test(url))           return 'instagram';
-  if (/linkedin\.com/i.test(url))            return 'linkedin';
-  if (/facebook\.com|fb\.com/i.test(url))    return 'facebook';
-  if (/youtube\.com|youtu\.be/i.test(url))   return 'youtube';
-  if (/tiktok\.com/i.test(url))              return 'tiktok';
-  if (/twitter\.com|x\.com/i.test(url))      return 'twitter';
+  if (/instagram\.com/i.test(url))          return 'instagram';
+  if (/linkedin\.com/i.test(url))           return 'linkedin';
+  if (/facebook\.com|fb\.com/i.test(url))   return 'facebook';
+  if (/youtube\.com|youtu\.be/i.test(url))  return 'youtube';
+  if (/tiktok\.com/i.test(url))             return 'tiktok';
+  if (/twitter\.com|x\.com/i.test(url))     return 'twitter';
   return 'web';
 }
 
@@ -63,15 +50,18 @@ export async function fetchUrlMetadata(url) {
   }
 }
 
-// ── Inspiration CRUD ────────────────────────────────────────────
-export function readInspirations() {
-  return readJson(INSP_PATH, { sources: [] });
+// ── Inspiration CRUD ─────────────────────────────────────────────
+export async function readInspirations() {
+  const db = await getDb();
+  const sources = await db.collection(COLL_INS).find().sort({ addedAt: -1 }).toArray();
+  return { sources };
 }
 
 export async function addInspiration({ url, label }) {
   const meta = await fetchUrlMetadata(url);
   const source = {
-    id: crypto.randomUUID(),
+    _id: crypto.randomUUID(),
+    id:  crypto.randomUUID(),
     url,
     label: label?.trim() || null,
     platform: detectPlatform(url),
@@ -79,40 +69,40 @@ export async function addInspiration({ url, label }) {
     description: meta.description,
     addedAt: new Date().toISOString(),
   };
-  const data = readInspirations();
-  data.sources.push(source);
-  writeJson(INSP_PATH, data);
+  source.id = source._id; // keep id field in sync with _id
+  const db = await getDb();
+  await db.collection(COLL_INS).insertOne(source);
   return source;
 }
 
-export function removeInspiration(id) {
-  const data = readInspirations();
-  data.sources = data.sources.filter(s => s.id !== id);
-  writeJson(INSP_PATH, data);
+export async function removeInspiration(id) {
+  const db = await getDb();
+  await db.collection(COLL_INS).deleteOne({ _id: id });
 }
 
-// ── Keywords CRUD ───────────────────────────────────────────────
-export function readKeywords() {
-  return readJson(KW_PATH, { keywords: [] });
+// ── Keywords CRUD ────────────────────────────────────────────────
+export async function readKeywords() {
+  const db = await getDb();
+  const keywords = await db.collection(COLL_KW).find().sort({ addedAt: -1 }).toArray();
+  return { keywords };
 }
 
-export function addKeyword(keyword) {
-  const data = readKeywords();
-  const entry = { id: crypto.randomUUID(), keyword: keyword.trim(), addedAt: new Date().toISOString() };
-  data.keywords.push(entry);
-  writeJson(KW_PATH, data);
+export async function addKeyword(keyword) {
+  const id = crypto.randomUUID();
+  const entry = { _id: id, id, keyword: keyword.trim(), addedAt: new Date().toISOString() };
+  const db = await getDb();
+  await db.collection(COLL_KW).insertOne(entry);
   return entry;
 }
 
-export function removeKeyword(id) {
-  const data = readKeywords();
-  data.keywords = data.keywords.filter(k => k.id !== id);
-  writeJson(KW_PATH, data);
+export async function removeKeyword(id) {
+  const db = await getDb();
+  await db.collection(COLL_KW).deleteOne({ _id: id });
 }
 
-// ── Context builders for AI prompts ─────────────────────────────
-export function buildInspirationContext() {
-  const { sources } = readInspirations();
+// ── Context builders for AI prompts ──────────────────────────────
+export async function buildInspirationContext() {
+  const { sources } = await readInspirations();
   const useful = sources.filter(s => s.title || s.description || s.label);
   if (!useful.length) return '';
   const lines = useful.map(s => {
@@ -123,6 +113,7 @@ export function buildInspirationContext() {
   return `\n\nStyle inspiration from similar creators in this niche — study their depth and authority, but all content must be 100% original:\n${lines}\n`;
 }
 
-export function getCustomKeywords() {
-  return readKeywords().keywords.map(k => k.keyword).filter(Boolean);
+export async function getCustomKeywords() {
+  const { keywords } = await readKeywords();
+  return keywords.map(k => k.keyword).filter(Boolean);
 }

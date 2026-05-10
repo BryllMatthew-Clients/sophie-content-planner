@@ -7,6 +7,7 @@ import { markPending } from './lib/approvals.js';
 import { pickTopicsForPlatform, pickSearchQueries } from './lib/topic-pool.js';
 import { buildAvoidList, recordGeneration } from './lib/history.js';
 import { getCustomKeywords, buildInspirationContext } from './lib/inspiration.js';
+import { closeDb } from './lib/db.js';
 
 const SUBREDDITS = [
   'tax',
@@ -74,11 +75,9 @@ async function fetchSearchResults(queries) {
 async function main() {
   ensureOutputDirs();
 
-  // Pick fresh topics from the pool (any platform) and derive search queries
   const selectedTopics  = pickTopicsForPlatform('any', 5);
-  const customKeywords  = getCustomKeywords();
+  const customKeywords  = await getCustomKeywords();
   const poolQueries     = pickSearchQueries(selectedTopics);
-  // Custom keywords always go first; fill rest from pool up to 8 total
   const searchQueries   = [...customKeywords, ...poolQueries].slice(0, 8);
 
   console.log(`Researching topics:\n${selectedTopics.map((t, i) => `  ${i + 1}. ${t.topic}`).join('\n')}\n`);
@@ -93,8 +92,10 @@ async function main() {
 
   const signalDump = JSON.stringify({ trendsData, searchResults, redditPosts }, null, 2);
   const topicGuidance = `\n\nFocus your research brief on these priority topics this week:\n${selectedTopics.map((t, i) => `  ${i + 1}. ${t.topic} (audience: ${t.audience})`).join('\n')}\n`;
-  const avoidList = buildAvoidList(30);
-  const inspirationCtx = buildInspirationContext();
+  const [avoidList, inspirationCtx] = await Promise.all([
+    buildAvoidList(30),
+    buildInspirationContext(),
+  ]);
 
   console.log('Synthesizing research brief with Claude...\n');
 
@@ -109,13 +110,12 @@ async function main() {
   const header = `# Sophie Nguyen — Weekly Research Brief\nGenerated: ${date}\n\n---\n\n`;
   const content = header + extractText(response);
 
-  const filePath = writeOutput('research', content);
-  markPending('research', 1);
-  recordGeneration({ topics: selectedTopics.map(t => t.topic), angles: [] });
+  const filePath = await writeOutput('research', content);
+  await markPending('research', 1);
+  await recordGeneration({ topics: selectedTopics.map(t => t.topic), angles: [] });
   console.log(`Research brief saved to: ${filePath}`);
 }
 
-main().catch(err => {
-  console.error('Research script failed:', err.message);
-  process.exit(1);
-});
+main()
+  .catch(err => { console.error('Research script failed:', err.message); process.exit(1); })
+  .finally(() => closeDb());

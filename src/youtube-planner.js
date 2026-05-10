@@ -4,18 +4,19 @@ import { ensureOutputDirs, readLatestOutput, writeOutput } from './lib/storage.j
 import { markPending } from './lib/approvals.js';
 import { pickTopicsForPlatform } from './lib/topic-pool.js';
 import { buildAvoidList, recordGeneration } from './lib/history.js';
+import { closeDb } from './lib/db.js';
 
 async function main() {
   ensureOutputDirs();
 
-  const researchBrief = readLatestOutput('research');
+  const researchBrief = await readLatestOutput('research');
   if (!researchBrief) {
     console.error('No research brief found. Run `npm run research` first.');
     process.exit(1);
   }
 
   const selectedTopics = pickTopicsForPlatform('youtube', 5);
-  const avoidList = buildAvoidList(30);
+  const avoidList = await buildAvoidList(30);
 
   console.log(`Generating 5 YouTube topic scripts:\n${selectedTopics.map((t, i) => `  ${i + 1}. ${t.topic} (${t.audience})`).join('\n')}\n`);
 
@@ -37,13 +38,12 @@ async function main() {
   const header = `# Sophie Nguyen — YouTube Topics & Scripts\nGenerated: ${date}\nResearch Source: ${researchDate}-research.md\n\n---\n\n`;
   const content = header + extractText(response);
 
-  const filePath = writeOutput('youtube', content);
-  markPending('youtube', 5);
-  recordGeneration({ topics: selectedTopics.map(t => t.topic), angles: [] });
+  const filePath = await writeOutput('youtube', content);
+  await markPending('youtube', 5);
+  await recordGeneration({ topics: selectedTopics.map(t => t.topic), angles: [] });
   console.log(`5 YouTube topic scripts saved to: ${filePath}`);
 }
 
-main().catch(err => {
-  console.error('YouTube planner failed:', err.message);
-  process.exit(1);
-});
+main()
+  .catch(err => { console.error('YouTube planner failed:', err.message); process.exit(1); })
+  .finally(() => closeDb());
