@@ -22,6 +22,8 @@ services:
       - key: REDDIT_USER_AGENT
         value: SophieContentBot/1.0
       - key: FRONTEND_URL
+        value: https://sophie-content-planner.vercel.app
+      - key: MONGODB_URI
         sync: false
     disk:
       name: output-data

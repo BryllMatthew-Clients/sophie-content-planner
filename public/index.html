@@ -1322,13 +1322,17 @@ function renderKeywordChips(keywords) {
 
 async function loadInspiration() {
   try {
-    const [{ sources }, { keywords }] = await Promise.all([
+    const [insRes, kwRes] = await Promise.all([
       fetch('/api/inspiration').then(r => r.json()),
       fetch('/api/keywords').then(r => r.json()),
     ]);
-    renderSourceList(sources);
-    renderKeywordChips(keywords);
-  } catch { document.getElementById('insp-list').innerHTML = '<div class="insp-empty">Failed to load.</div>'; }
+    if (insRes.error || kwRes.error) throw new Error(insRes.error || kwRes.error);
+    renderSourceList(insRes.sources);
+    renderKeywordChips(kwRes.keywords);
+  } catch (err) {
+    document.getElementById('insp-list').innerHTML =
+      `<div class="insp-empty">Failed to load: ${err.message || 'server error. Make sure the server is running and MongoDB is reachable.'}</div>`;
+  }
 }
 
 async function addSource() {
@@ -1337,15 +1341,16 @@ async function addSource() {
   const btn     = document.getElementById('insp-add-btn');
   const url = urlEl.value.trim();
   if (!url) { urlEl.focus(); return; }
-  btn.disabled = true; btn.textContent = 'Fetching…';
+  btn.disabled = true; btn.textContent = 'Adding…';
   try {
-    await fetch('/api/inspiration', {
+    const res = await fetch('/api/inspiration', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ url, label: labelEl.value.trim() || null })
-    });
+    }).then(r => r.json());
+    if (res.error) throw new Error(res.error);
     urlEl.value = ''; labelEl.value = '';
     await loadInspiration();
-  } catch { alert('Failed to add source.'); }
+  } catch (err) { alert('Failed to add source: ' + (err.message || 'unknown error')); }
   finally { btn.disabled = false; btn.textContent = '+ Add Source'; }
 }
 
@@ -1358,12 +1363,15 @@ async function addKeyword() {
   const el = document.getElementById('kw-input');
   const kw = el.value.trim();
   if (!kw) { el.focus(); return; }
-  await fetch('/api/keywords', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ keyword: kw })
-  });
-  el.value = '';
-  await loadInspiration();
+  try {
+    const res = await fetch('/api/keywords', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ keyword: kw })
+    }).then(r => r.json());
+    if (res.error) throw new Error(res.error);
+    el.value = '';
+    await loadInspiration();
+  } catch (err) { alert('Failed to add keyword: ' + (err.message || 'unknown error')); }
 }
 
 async function removeKeyword(id) {

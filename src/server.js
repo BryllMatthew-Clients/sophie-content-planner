@@ -180,33 +180,38 @@ async function runSequence(names, res) {
 }
 
 // ── Inspiration & Keywords ────────────────────────────────────────────────
-app.get('/api/inspiration', async (req, res) => res.json(await readInspirations()));
+app.get('/api/inspiration', async (req, res) => {
+  try { res.json(await readInspirations()); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 app.post('/api/inspiration', express.json(), async (req, res) => {
   const { url, label } = req.body ?? {};
   if (!url) return res.status(400).json({ error: 'url required' });
-  try {
-    const source = await addInspiration({ url, label });
-    res.json(source);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(await addInspiration({ url, label })); }
+  catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/inspiration/:id', async (req, res) => {
-  await removeInspiration(req.params.id);
-  res.json({ ok: true });
+  try { await removeInspiration(req.params.id); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/keywords', async (req, res) => res.json(await readKeywords()));
+app.get('/api/keywords', async (req, res) => {
+  try { res.json(await readKeywords()); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 app.post('/api/keywords', express.json(), async (req, res) => {
   const { keyword } = req.body ?? {};
   if (!keyword?.trim()) return res.status(400).json({ error: 'keyword required' });
-  res.json(await addKeyword(keyword));
+  try { res.json(await addKeyword(keyword)); }
+  catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/keywords/:id', async (req, res) => {
-  await removeKeyword(req.params.id);
-  res.json({ ok: true });
+  try { await removeKeyword(req.params.id); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── Captions (manual edits) ───────────────────────────────────────────────

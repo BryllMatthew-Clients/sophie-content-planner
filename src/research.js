@@ -6,7 +6,7 @@ import { ensureOutputDirs, writeOutput } from './lib/storage.js';
 import { markPending } from './lib/approvals.js';
 import { pickTopicsForPlatform, pickSearchQueries } from './lib/topic-pool.js';
 import { buildAvoidList, recordGeneration } from './lib/history.js';
-import { getCustomKeywords, buildInspirationContext } from './lib/inspiration.js';
+import { getCustomKeywords, buildInspirationContext, buildInspirationContentForResearch } from './lib/inspiration.js';
 import { closeDb } from './lib/db.js';
 
 const SUBREDDITS = [
@@ -92,9 +92,9 @@ async function main() {
 
   const signalDump = JSON.stringify({ trendsData, searchResults, redditPosts }, null, 2);
   const topicGuidance = `\n\nFocus your research brief on these priority topics this week:\n${selectedTopics.map((t, i) => `  ${i + 1}. ${t.topic} (audience: ${t.audience})`).join('\n')}\n`;
-  const [avoidList, inspirationCtx] = await Promise.all([
+  const [avoidList, competitorCtx] = await Promise.all([
     buildAvoidList(30),
-    buildInspirationContext(),
+    buildInspirationContentForResearch(),
   ]);
 
   console.log('Synthesizing research brief with Claude...\n');
@@ -102,7 +102,7 @@ async function main() {
   const systemParts = buildSystemParts('research.md');
   const response = await generateWithCache(
     systemParts,
-    `Here are this week's trending signals. Synthesize them into a 5-topic research brief following the format in your instructions.${topicGuidance}${avoidList}${inspirationCtx}\n\n${signalDump}`,
+    `Here are this week's trending signals. Synthesize them into a 5-topic research brief following the format in your instructions.${topicGuidance}${avoidList}${competitorCtx}\n\n${signalDump}`,
     { model: 'claude-haiku-4-5', maxTokens: 3000, temperature: 0.5 }
   );
 
