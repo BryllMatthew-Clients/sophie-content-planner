@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sophie's Automated Content Planner</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream:   #F7F3EC;
+    --cream2:  #EDE8DF;
+    --olive:   #7B8C3F;
+    --olive2:  #9aad52;
+    --dark:    #1a2436;
+    --dark2:   #2a3a52;
+    --gray:    #8a9aaa;
+    --border:  rgba(26,36,54,.1);
+    --li:      #7B8C3F;
+    --fb:      #4267B2;
+    --ig:      #C13584;
+    --yt:      #c0392b;
+    --font:    'Georgia', 'Times New Roman', serif;
+    --sans:    system-ui, 'Segoe UI', sans-serif;
+  }
+
+  html, body { height: 100%; background: var(--cream); color: var(--dark); font-family: var(--sans); }
+
+  /* ── Header ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px; height: 62px; flex-shrink: 0;
+    background: var(--dark); border-bottom: 3px solid var(--olive);
+  }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  header h1 { font-family: var(--font); font-size: 1.05rem; font-weight: 400; color: #fff; letter-spacing: .02em; }
+  header h1 strong { color: var(--olive2); font-weight: 700; }
+  .brand-dot { color: var(--olive); opacity: .6; }
+  #model-badge {
+    font-size: .7rem; padding: 3px 10px; border-radius: 20px;
+    background: rgba(123,140,63,.2); color: var(--olive2); border: 1px solid rgba(123,140,63,.4);
+    font-family: var(--sans);
+  }
+
+  /* ── Layout ── */
+  .layout { display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - 62px); }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    background: var(--dark); border-right: 1px solid rgba(255,255,255,.07);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .sidebar-section { padding: 20px 18px 0; }
+  .sidebar-section h2 { font-size: .67rem; text-transform: uppercase; letter-spacing: .12em; color: var(--gray); margin-bottom: 12px; font-family: var(--sans); }
+
+  .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 8px; }
+  .btn {
+    display: flex; align-items: center; gap: 6px; padding: 8px 11px;
+    border-radius: 6px; border: none; cursor: pointer; font-size: .77rem; font-weight: 600;
+    font-family: var(--sans); transition: opacity .15s, transform .1s; color: #fff;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn.secondary { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); }
+  .btn.run-all { grid-column: span 2; background: var(--olive); color: #fff; justify-content: center; }
+  .btn.run-all:hover { background: var(--olive2); }
+
+  .terminal-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 0 18px 18px; margin-top: 16px; }
+  .terminal-label { font-size: .67rem; text-transform: uppercase; letter-spacing: .1em; color: var(--gray); margin-bottom: 7px; display: flex; align-items: center; gap: 8px; font-family: var(--sans); }
+  .spinner { width: 7px; height: 7px; border-radius: 50%; background: var(--olive2); display: none; animation: pulse 1s infinite; }
+  .spinner.active { display: inline-block; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.25} }
+  #terminal {
+    flex: 1; background: #0d1520; border-radius: 7px; border: 1px solid rgba(255,255,255,.06);
+    overflow-y: auto; padding: 12px; font-family: 'Cascadia Code','Consolas',monospace;
+    font-size: .71rem; line-height: 1.6; color: #a8c0d0; white-space: pre-wrap; word-break: break-word;
+  }
+  .log-ok  { color: #8ec98a; }
+  .log-err { color: #e07070; }
+  .log-hd  { color: var(--olive2); font-weight: 700; }
+  #clear-btn { margin-top: 6px; background: none; border: none; color: var(--gray); font-size: .7rem; cursor: pointer; align-self: flex-end; font-family: var(--sans); }
+  #clear-btn:hover { color: #fff; }
+
+  /* ── Main panel ── */
+  .main { display: flex; flex-direction: column; overflow: hidden; background: var(--cream); }
+
+  .tabs { display: flex; gap: 1px; padding: 14px 22px 0; border-bottom: 2px solid var(--border); flex-shrink: 0; background: var(--cream2); }
+  .tab {
+    padding: 8px 16px; font-size: .78rem; font-weight: 600; cursor: pointer;
+    border-radius: 6px 6px 0 0; border: 1px solid transparent; border-bottom: none;
+    color: var(--gray); background: transparent; transition: all .15s; font-family: var(--sans);
+    letter-spacing: .01em;
+  }
+  .tab:hover { color: var(--dark); }
+  .tab.active { color: var(--dark); background: var(--cream); border-color: var(--border); margin-bottom: -2px; border-bottom: 2px solid var(--cream); }
+  .tab .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--olive); display: inline-block; margin-left: 5px; vertical-align: middle; opacity: 0; }
+  .tab .dot.has-content { opacity: 1; }
+
+  .viewer { flex: 1; overflow-y: auto; padding: 28px 36px; }
+  .viewer.empty { display: flex; align-items: center; justify-content: center; }
+  .empty-state { text-align: center; color: var(--gray); }
+  .empty-state .icon { font-size: 2.2rem; margin-bottom: 10px; }
+  .empty-state p { font-size: .85rem; line-height: 1.7; }
+  .empty-state strong { color: var(--olive); }
+
+  /* ── Markdown ── */
+  .md-content h1 { font-family: var(--font); font-size: 1.5rem; color: var(--dark); margin-bottom: 6px; }
+  .md-content h2 { font-family: var(--font); font-size: 1.05rem; color: var(--dark); margin: 26px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .md-content h3 { font-size: .88rem; color: var(--olive); margin: 16px 0 7px; text-transform: uppercase; letter-spacing: .06em; }
+  .md-content p  { font-size: .88rem; line-height: 1.8; color: var(--dark2); margin-bottom: 10px; }
+  .md-content ul, .md-content ol { padding-left: 20px; margin-bottom: 10px; }
+  .md-content li { font-size: .88rem; line-height: 1.8; color: var(--dark2); margin-bottom: 3px; }
+  .md-content strong { color: var(--dark); }
+  .md-content em { color: var(--olive); font-style: italic; }
+  .md-content hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
+  .md-content code { background: rgba(26,36,54,.07); padding: 1px 5px; border-radius: 3px; font-size: .82rem; color: var(--olive); }
+  .md-content blockquote { border-left: 3px solid var(--olive); padding-left: 14px; color: var(--gray); margin: 10px 0; }
+  .md-content table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: .82rem; }
+  .md-content th { background: rgba(123,140,63,.1); color: var(--olive); padding: 8px 12px; text-align: left; border-bottom: 1px solid rgba(123,140,63,.25); }
+  .md-content td { padding: 7px 12px; border-bottom: 1px solid var(--border); color: var(--dark2); }
+
+  /* ── Calendar ── */
+  .cal-wrap { flex: 1; overflow-y: auto; padding: 18px 22px; display: flex; flex-direction: column; gap: 14px; background: var(--cream); }
+
+  .cal-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  .cal-nav { display: flex; align-items: center; gap: 6px; }
+  .cal-title { font-family: var(--font); font-size: 1.15rem; font-weight: 700; min-width: 170px; text-align: center; color: var(--dark); }
+  .nav-btn { background: var(--cream2); border: 1px solid var(--border); color: var(--dark); border-radius: 5px; padding: 5px 11px; cursor: pointer; font-size: .85rem; font-family: var(--sans); }
+  .nav-btn:hover { background: var(--cream); border-color: var(--olive); }
+
+  .view-toggle { display: flex; gap: 3px; }
+  .view-btn { padding: 5px 13px; border-radius: 5px; border: 1px solid var(--border); background: transparent; color: var(--gray); font-size: .76rem; cursor: pointer; transition: all .15s; font-family: var(--sans); }
+  .view-btn.active { background: var(--olive); color: #fff; border-color: var(--olive); }
+
+  .regen-btn { padding: 5px 11px; border-radius: 5px; border: 1px solid var(--border); background: transparent; color: var(--gray); font-size: .74rem; cursor: pointer; font-family: var(--sans); }
+  .regen-btn:hover { color: var(--dark); border-color: var(--olive); }
+
+  /* Month grid */
+  .cal-grid { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #fff; }
+  .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); background: var(--cream2); border-bottom: 1px solid var(--border); }
+  .cal-weekday { padding: 7px 4px; text-align: center; font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; color: var(--gray); font-family: var(--sans); }
+  .cal-days { display: grid; grid-template-columns: repeat(7, 1fr); }
+
+  .cal-day { min-height: 90px; padding: 6px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); background: #fff; position: relative; overflow: hidden; }
+  .cal-day:hover { background: var(--cream); }
+  .cal-day.other-month { opacity: .4; background: var(--cream2); }
+  .cal-day.today { background: rgba(123,140,63,.06); }
+  .cal-day.today .day-num { color: var(--olive); font-weight: 700; }
+  .cal-day:nth-child(7n) { border-right: none; }
+
+  .day-num { font-size: .73rem; color: var(--gray); margin-bottom: 4px; font-family: var(--sans); }
+  .day-events { display: flex; flex-direction: column; gap: 2px; }
+
+  .event-chip { font-size: .64rem; padding: 2px 5px; border-radius: 3px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; transition: opacity .1s; font-family: var(--sans); border-left: 2px solid transparent; }
+  .event-chip:hover { opacity: .75; }
+  .event-chip.linkedin  { background: rgba(123,140,63,.12); color: #5a6b2a; border-left-color: var(--li); }
+  .event-chip.facebook  { background: rgba(66,103,178,.1);  color: #3a5a9e; border-left-color: var(--fb); }
+  .event-chip.instagram { background: rgba(193,53,132,.1);  color: #a02070; border-left-color: var(--ig); }
+  .event-chip.youtube   { background: rgba(192,57,43,.1);   color: #9e2a1a; border-left-color: var(--yt); }
+  .more-chip { font-size: .62rem; color: var(--gray); padding: 1px 4px; cursor: pointer; font-family: var(--sans); }
+  .more-chip:hover { color: var(--olive); }
+
+  /* List view */
+  .list-range { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0 14px; }
+  .list-range label { font-size: .76rem; color: var(--gray); font-family: var(--sans); }
+  .date-input { background: #fff; border: 1px solid var(--border); color: var(--dark); border-radius: 5px; padding: 5px 10px; font-size: .76rem; font-family: var(--sans); }
+  .list-apply { padding: 5px 12px; border-radius: 5px; background: var(--olive); color: #fff; border: none; font-size: .76rem; font-weight: 600; cursor: pointer; font-family: var(--sans); }
+
+  .cal-list { display: flex; flex-direction: column; gap: 0; }
+  .list-day { border-bottom: 1px solid var(--border); }
+  .list-day-header { padding: 12px 0 5px; font-size: .72rem; font-weight: 700; color: var(--gray); letter-spacing: .05em; text-transform: uppercase; font-family: var(--sans); }
+  .list-day-header.today-label { color: var(--olive); }
+  .list-events { display: flex; flex-direction: column; gap: 5px; padding-bottom: 10px; }
+  .list-event { display: flex; align-items: flex-start; gap: 10px; padding: 9px 12px; background: #fff; border-radius: 7px; cursor: pointer; border: 1px solid var(--border); transition: border-color .12s; }
+  .list-event:hover { border-color: var(--olive); }
+  .list-event-badge { font-size: .63rem; font-weight: 700; padding: 2px 7px; border-radius: 3px; white-space: nowrap; flex-shrink: 0; margin-top: 2px; font-family: var(--sans); }
+  .list-event-badge.linkedin  { background: rgba(123,140,63,.15); color: #5a6b2a; }
+  .list-event-badge.facebook  { background: rgba(66,103,178,.12); color: #3a5a9e; }
+  .list-event-badge.instagram { background: rgba(193,53,132,.12); color: #a02070; }
+  .list-event-badge.youtube   { background: rgba(192,57,43,.12);  color: #9e2a1a; }
+  .list-event-title { font-size: .83rem; color: var(--dark); line-height: 1.4; font-family: var(--sans); }
+  .list-empty { color: var(--gray); font-size: .85rem; padding: 24px 0; text-align: center; font-family: var(--sans); }
+
+  /* Legend */
+  .cal-legend { display: flex; gap: 16px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: .7rem; color: var(--gray); font-family: var(--sans); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+  .legend-dot.linkedin  { background: var(--li); }
+  .legend-dot.facebook  { background: var(--fb); }
+  .legend-dot.instagram { background: var(--ig); }
+  .legend-dot.youtube   { background: var(--yt); }
+
+  /* ── Modal ── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(26,36,54,.5); z-index: 100; display: none; align-items: center; justify-content: center; padding: 24px; }
+  .modal-overlay.open { display: flex; }
+  .modal-box { background: var(--cream); border: 1px solid var(--border); border-radius: 10px; width: 100%; max-width: 700px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(26,36,54,.15); }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--cream2); }
+  .modal-meta { display: flex; align-items: center; gap: 10px; }
+  .modal-badge { font-size: .68rem; font-weight: 700; padding: 3px 9px; border-radius: 3px; font-family: var(--sans); }
+  .modal-badge.linkedin  { background: rgba(123,140,63,.15); color: #5a6b2a; }
+  .modal-badge.facebook  { background: rgba(66,103,178,.12); color: #3a5a9e; }
+  .modal-badge.instagram { background: rgba(193,53,132,.12); color: #a02070; }
+  .modal-badge.youtube   { background: rgba(192,57,43,.12);  color: #9e2a1a; }
+  .modal-date { font-size: .76rem; color: var(--gray); font-family: var(--sans); }
+  .modal-close { background: none; border: none; color: var(--gray); font-size: 1.1rem; cursor: pointer; padding: 2px 6px; }
+  .modal-close:hover { color: var(--dark); }
+  .modal-body { overflow-y: auto; padding: 20px 22px; }
+  .modal-image { width: 100%; border-radius: 7px; margin-bottom: 16px; border: 1px solid var(--border); display: block; }
+
+  /* ── Review ── */
+  .review-wrap { flex: 1; overflow-y: auto; padding: 24px 30px; background: var(--cream); }
+  .review-section { margin-bottom: 32px; }
+  .review-section-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 12px; flex-wrap: wrap; }
+  .review-section-title { font-family: var(--font); font-size: 1rem; color: var(--dark); display: flex; align-items: center; gap: 8px; }
+  .badge-pending { font-size: .63rem; background: #d08a10; color: #fff; border-radius: 20px; padding: 2px 8px; font-weight: 700; font-family: var(--sans); }
+  .bulk-actions { display: flex; gap: 6px; }
+  .btn-approve-all { padding: 4px 12px; border-radius: 4px; background: rgba(123,140,63,.13); color: var(--olive); border: 1px solid rgba(123,140,63,.3); font-size: .71rem; font-weight: 600; cursor: pointer; font-family: var(--sans); }
+  .btn-approve-all:hover { background: var(--olive); color: #fff; }
+  .btn-reject-all { padding: 4px 12px; border-radius: 4px; background: rgba(192,57,43,.08); color: #9e2a1a; border: 1px solid rgba(192,57,43,.2); font-size: .71rem; font-weight: 600; cursor: pointer; font-family: var(--sans); }
+  .btn-reject-all:hover { background: #c0392b; color: #fff; }
+
+  /* Review cards */
+  .review-cards { display: flex; flex-direction: column; gap: 14px; }
+  .review-card { background: #fff; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; transition: border-color .15s, opacity .15s; }
+  .review-card.approved { border-left: 4px solid var(--olive); }
+  .review-card.rejected { border-left: 4px solid #c0392b; opacity: .6; }
+  .review-card.pending  { border-left: 4px solid #d08a10; }
+
+  /* Card header */
+  .rcard-hd { display: flex; align-items: center; gap: 8px; padding: 11px 16px; border-bottom: 1px solid var(--border); background: var(--cream2); flex-wrap: wrap; }
+  .rcard-type { font-size: .62rem; font-weight: 700; padding: 2px 8px; border-radius: 3px; font-family: var(--sans); flex-shrink: 0; }
+  .rcard-type.linkedin  { background: rgba(123,140,63,.18); color: #5a6b2a; }
+  .rcard-type.facebook  { background: rgba(66,103,178,.14); color: #3a5a9e; }
+  .rcard-type.instagram { background: rgba(193,53,132,.14); color: #a02070; }
+  .rcard-type.youtube   { background: rgba(192,57,43,.13);  color: #9e2a1a; }
+  .rcard-type.research  { background: rgba(123,140,63,.13); color: #5a6b2a; }
+  .rcard-title { font-size: .84rem; font-weight: 700; color: var(--dark); flex: 1; line-height: 1.3; min-width: 0; }
+
+  /* Card body: image left, content right */
+  .rcard-body { display: flex; gap: 0; align-items: stretch; }
+  .rcard-img-col { flex-shrink: 0; padding: 14px 12px 14px 16px; display: flex; flex-direction: column; align-items: center; gap: 5px; border-right: 1px solid var(--border); }
+  .rcard-img { width: 154px; height: 154px; object-fit: cover; border-radius: 7px; border: 1px solid var(--border); cursor: zoom-in; display: block; transition: opacity .12s, box-shadow .12s; }
+  .rcard-img.portrait { width: 123px; height: 154px; }
+  .rcard-img:hover { opacity: .88; box-shadow: 0 4px 16px rgba(0,0,0,.15); }
+  .rcard-img-hint { font-size: .61rem; color: var(--gray); font-family: var(--sans); text-align: center; }
+
+  .rcard-content { flex: 1; padding: 14px 16px; min-width: 0; overflow: hidden; display: flex; flex-direction: column; gap: 10px; }
+  .rcard-field-label { font-size: .61rem; text-transform: uppercase; letter-spacing: .1em; color: var(--olive); font-weight: 700; font-family: var(--sans); margin-bottom: 4px; }
+  .rcard-caption { max-height: 220px; overflow-y: auto; font-size: .78rem; color: var(--dark2); line-height: 1.65; }
+  .rcard-caption h2 { font-size: .8rem; font-family: var(--sans); font-weight: 700; color: var(--olive); margin: 8px 0 3px; text-transform: uppercase; letter-spacing: .05em; }
+  .rcard-caption p { font-size: .78rem; line-height: 1.65; margin-bottom: 6px; }
+  .rcard-caption ul, .rcard-caption ol { padding-left: 18px; margin-bottom: 6px; }
+  .rcard-caption li { font-size: .78rem; line-height: 1.6; margin-bottom: 2px; }
+  .rcard-caption strong { color: var(--dark); }
+  .rcard-hashtags { display: flex; flex-wrap: wrap; gap: 5px; }
+  .hashtag-chip { font-size: .69rem; background: rgba(123,140,63,.1); color: #5a6b2a; border: 1px solid rgba(123,140,63,.22); border-radius: 4px; padding: 2px 8px; font-family: var(--sans); }
+
+  /* Card footer */
+  .rcard-footer { display: flex; align-items: center; justify-content: space-between; padding: 9px 16px; border-top: 1px solid var(--border); background: var(--cream); flex-wrap: wrap; gap: 8px; }
+  .rcard-sched { font-size: .71rem; color: var(--gray); font-family: var(--sans); flex: 1; }
+  .rcard-sched.live { color: var(--olive); font-weight: 600; }
+  .rcard-actions { display: flex; gap: 6px; align-items: center; }
+  .status-pill { font-size: .65rem; font-weight: 700; padding: 2px 9px; border-radius: 20px; font-family: var(--sans); }
+  .status-pill.pending  { background: rgba(208,138,16,.14); color: #a06b00; }
+  .status-pill.approved { background: rgba(123,140,63,.14); color: #5a6b2a; }
+  .status-pill.rejected { background: rgba(192,57,43,.12); color: #9e2a1a; }
+  .btn-approve { padding: 4px 13px; border-radius: 4px; background: rgba(123,140,63,.12); color: var(--olive); border: 1px solid rgba(123,140,63,.25); font-size: .71rem; font-weight: 600; cursor: pointer; font-family: var(--sans); }
+  .btn-approve:hover:not(:disabled) { background: var(--olive); color: #fff; }
+  .btn-approve:disabled { opacity: .3; cursor: default; }
+  .btn-reject { padding: 4px 13px; border-radius: 4px; background: rgba(192,57,43,.08); color: #9e2a1a; border: 1px solid rgba(192,57,43,.18); font-size: .71rem; font-weight: 600; cursor: pointer; font-family: var(--sans); }
+  .btn-reject:hover:not(:disabled) { background: #c0392b; color: #fff; }
+  .btn-reject:disabled { opacity: .3; cursor: default; }
+
+  .review-badge { font-size: .59rem; background: #d08a10; color: #fff; border-radius: 20px; padding: 1px 6px; font-weight: 700; margin-left: 4px; vertical-align: middle; }
+  .review-empty { color: var(--gray); font-size: .85rem; text-align: center; padding: 48px 0; font-family: var(--sans); }
+
+  /* Lightbox */
+  #lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.93); z-index: 300; display: none; align-items: center; justify-content: center; cursor: zoom-out; }
+  #lightbox.open { display: flex; }
+  #lightbox-img { max-width: 88vw; max-height: 88vh; object-fit: contain; border-radius: 8px; box-shadow: 0 0 80px rgba(0,0,0,.6); }
+  #lightbox-close { position: absolute; top: 18px; right: 22px; background: rgba(255,255,255,.12); border: none; color: #fff; font-size: 1.3rem; cursor: pointer; padding: 3px 12px; border-radius: 5px; }
+  #lightbox-close:hover { background: rgba(255,255,255,.25); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(26,36,54,.2); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1><strong>Sophie's</strong> Automated Content Planner <span class="brand-dot">·</span> Paramount Tax Richardson</h1>
+  </div>
+  <span id="model-badge">loading…</span>
+</header>
+
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <h2>Pipeline</h2>
+      <div class="btn-grid">
+        <button class="btn secondary" data-script="research"><span>🔍</span> Research</button>
+        <button class="btn secondary" data-script="linkedin"><span>💼</span> LinkedIn</button>
+        <button class="btn secondary" data-script="facebook"><span>📘</span> Facebook</button>
+        <button class="btn secondary" data-script="instagram"><span>📸</span> Instagram</button>
+        <button class="btn secondary" data-script="youtube"><span>▶️</span> YouTube</button>
+        <button class="btn secondary" data-script="calendar" style="cursor:default;opacity:.5">📅 Calendar</button>
+        <button class="btn run-all" data-script="all"><span>⚡</span> Run Full Pipeline</button>
+      </div>
+    </div>
+    <div class="terminal-wrap">
+      <div class="terminal-label">
+        <span>Live Output</span>
+        <span class="spinner" id="spinner"></span>
+      </div>
+      <div id="terminal">Ready. Press a button to run a step.</div>
+      <button id="clear-btn" onclick="clearTerminal()">Clear</button>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main">
+    <nav class="tabs">
+      <button class="tab active" data-tab="research">Research <span class="dot" id="dot-research"></span></button>
+      <button class="tab" data-tab="linkedin">LinkedIn <span class="dot" id="dot-linkedin"></span></button>
+      <button class="tab" data-tab="facebook">Facebook <span class="dot" id="dot-facebook"></span></button>
+      <button class="tab" data-tab="instagram">Instagram <span class="dot" id="dot-instagram"></span></button>
+      <button class="tab" data-tab="youtube">YouTube <span class="dot" id="dot-youtube"></span></button>
+      <button class="tab" data-tab="calendar">📅 Calendar <span class="dot" id="dot-calendar"></span></button>
+      <button class="tab" data-tab="review">Review <span class="review-badge" id="review-count" style="display:none">0</span></button>
+    </nav>
+
+    <div class="viewer empty" id="viewer" style="display:none"></div>
+
+    <div class="cal-wrap" id="cal-panel" style="display:none">
+      <div class="cal-toolbar">
+        <div class="cal-nav">
+          <button class="nav-btn" onclick="calShift(-1)">&#8249;</button>
+          <span class="cal-title" id="cal-title"></span>
+          <button class="nav-btn" onclick="calShift(1)">&#8250;</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div class="view-toggle">
+            <button class="view-btn active" id="btn-month" onclick="setCalView('month')">Month</button>
+            <button class="view-btn" id="btn-list" onclick="setCalView('list')">List</button>
+          </div>
+          <button class="regen-btn" onclick="regenSchedule()">↺ Reschedule</button>
+        </div>
+      </div>
+
+      <div class="cal-legend">
+        <div class="legend-item"><span class="legend-dot linkedin"></span>LinkedIn</div>
+        <div class="legend-item"><span class="legend-dot facebook"></span>Facebook</div>
+        <div class="legend-item"><span class="legend-dot instagram"></span>Instagram</div>
+        <div class="legend-item"><span class="legend-dot youtube"></span>YouTube</div>
+      </div>
+
+      <div id="month-view">
+        <div class="cal-grid">
+          <div class="cal-weekdays">
+            <div class="cal-weekday">Mon</div><div class="cal-weekday">Tue</div>
+            <div class="cal-weekday">Wed</div><div class="cal-weekday">Thu</div>
+            <div class="cal-weekday">Fri</div><div class="cal-weekday">Sat</div>
+            <div class="cal-weekday">Sun</div>
+          </div>
+          <div class="cal-days" id="cal-days"></div>
+        </div>
+      </div>
+
+      <div id="list-view" style="display:none">
+        <div class="list-range">
+          <label>From</label>
+          <input type="date" class="date-input" id="range-from">
+          <label>To</label>
+          <input type="date" class="date-input" id="range-to">
+          <button class="list-apply" onclick="renderList()">Apply</button>
+        </div>
+        <div class="cal-list" id="cal-list"></div>
+      </div>
+    </div>
+
+    <!-- ── Review panel ── -->
+    <div class="review-wrap" id="review-panel" style="display:none">
+      <div id="review-body"><div class="review-empty">Loading…</div></div>
+    </div>
+  </main>
+</div>
+
+<!-- ── Modal ── -->
+<div class="modal-overlay" id="modal" onclick="closeModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-meta">
+        <span class="modal-badge" id="modal-badge"></span>
+        <span class="modal-date" id="modal-date"></span>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<!-- ── Lightbox ── -->
+<div id="lightbox" onclick="closeLightbox()">
+  <img id="lightbox-img" src="" alt="" onclick="event.stopPropagation()">
+  <button id="lightbox-close" onclick="closeLightbox()">✕</button>
+</div>
+
+<script>
+const TODAY = new Date().toISOString().slice(0,10);
+let activeTab = 'research', isRunning = false;
+let calEvents = [], calView = 'month', calYear, calMonth;
+let reviewApprovals = {};
+
+const TYPE_LABELS = { linkedin:'LI', facebook:'FB', instagram:'IG', youtube:'YT' };
+const ALL_TYPES = ['research','linkedin','facebook','instagram','youtube'];
+const REVIEW_SECTIONS = [
+  { type:'research',  label:'Research Brief' },
+  { type:'linkedin',  label:'LinkedIn Posts' },
+  { type:'facebook',  label:'Facebook Posts' },
+  { type:'instagram', label:'Instagram Posts' },
+  { type:'youtube',   label:'YouTube Topics' },
+];
+
+// ── Boot ──────────────────────────────────────────────────────
+async function boot() {
+  const [s, approvals] = await Promise.all([
+    fetch('/api/status').then(r=>r.json()),
+    fetch('/api/approvals').then(r=>r.json()),
+  ]);
+  document.getElementById('model-badge').textContent =
+    s.mock ? 'MOCK MODE' : s.ollamaModel ? `Ollama · ${s.ollamaModel}` : 'Claude API';
+  for (const [t, exists] of Object.entries(s.outputs))
+    if (exists) document.getElementById(`dot-${t}`)?.classList.add('has-content');
+  reviewApprovals = approvals;
+  updateReviewBadge();
+  for (const t of ALL_TYPES) { if (s.outputs[t]) { switchTab(t); break; } }
+}
+
+// ── Tabs ──────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+
+async function switchTab(name) {
+  activeTab = name;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  const viewer  = document.getElementById('viewer');
+  const cal     = document.getElementById('cal-panel');
+  const review  = document.getElementById('review-panel');
+  viewer.style.display = 'none'; cal.style.display = 'none'; review.style.display = 'none';
+  if (name === 'calendar') { cal.style.display = 'flex'; await loadCalendar(); return; }
+  if (name === 'review')   { review.style.display = ''; await loadReview(); return; }
+  viewer.style.display = '';
+  const { content } = await fetch(`/api/output/${name}`).then(r=>r.json());
+  if (!content) {
+    viewer.className = 'viewer empty';
+    viewer.innerHTML = `<div class="empty-state"><div class="icon">📄</div><p>No <strong>${name}</strong> output yet.<br>Run the pipeline to generate it.</p></div>`;
+    return;
+  }
+  viewer.className = 'viewer';
+  viewer.innerHTML = `<div class="md-content">${marked.parse(content)}</div>`;
+  viewer.scrollTop = 0;
+}
+
+// ── Pipeline ──────────────────────────────────────────────────
+document.querySelectorAll('[data-script]').forEach(btn => {
+  if (btn.dataset.script === 'calendar') return;
+  btn.addEventListener('click', () => runScript(btn.dataset.script));
+});
+
+function runScript(name) {
+  if (isRunning) return;
+  isRunning = true; setButtonsDisabled(true);
+  document.getElementById('spinner').classList.add('active');
+  document.getElementById('terminal').innerHTML = '';
+  const es = new EventSource(`/api/run/${name}`);
+  es.addEventListener('start', () => appendLog(`▶ Starting: ${name}\n`, 'log-hd'));
+  es.addEventListener('log', e => {
+    const { text } = JSON.parse(e.data);
+    appendLog(text, /error|failed/i.test(text) ? 'log-err' : '');
+  });
+  es.addEventListener('step', e => {
+    const { script, code } = JSON.parse(e.data);
+    appendLog(`✓ ${script} (exit ${code})\n`, code===0?'log-ok':'log-err');
+    document.getElementById(`dot-${script}`)?.classList.add('has-content');
+    if (activeTab === script) switchTab(script);
+  });
+  es.addEventListener('done', e => {
+    const { script, code } = JSON.parse(e.data);
+    appendLog(`\n${code===0?'✅':'❌'} ${code===0?'Complete':'Failed'}\n`, code===0?'log-ok':'log-err');
+    es.close(); isRunning = false; setButtonsDisabled(false);
+    document.getElementById('spinner').classList.remove('active');
+    const scripts = script === 'all' ? ALL_TYPES : [script];
+    scripts.forEach(s => document.getElementById(`dot-${s}`)?.classList.add('has-content'));
+    if (scripts.includes(activeTab)) switchTab(activeTab);
+    if (activeTab === 'calendar') loadCalendar(true);
+    else document.getElementById('dot-calendar').classList.add('has-content');
+    fetch('/api/approvals').then(r=>r.json()).then(a=>{ reviewApprovals=a; updateReviewBadge(); });
+    if (activeTab === 'review') loadReview();
+  });
+  es.onerror = () => {
+    appendLog('\n⚠ Connection lost.\n','log-err'); es.close();
+    isRunning = false; setButtonsDisabled(false);
+    document.getElementById('spinner').classList.remove('active');
+  };
+}
+
+function appendLog(text, cls) {
+  const t = document.getElementById('terminal');
+  if (cls) { const s=document.createElement('span'); s.className=cls; s.textContent=text; t.appendChild(s); }
+  else t.appendChild(document.createTextNode(text));
+  t.scrollTop = t.scrollHeight;
+}
+function clearTerminal() { document.getElementById('terminal').innerHTML = 'Ready.'; }
+function setButtonsDisabled(d) { document.querySelectorAll('[data-script]').forEach(b => { if(b.dataset.script!=='calendar') b.disabled=d; }); }
+
+// ── Calendar ──────────────────────────────────────────────────
+async function loadCalendar(force=false) {
+  const url = force ? '/api/calendar/regenerate' : '/api/calendar';
+  const data = await fetch(url, { method: force?'POST':'GET' }).then(r=>r.json());
+  calEvents = data.events || [];
+  document.getElementById('dot-calendar').classList.toggle('has-content', calEvents.length > 0);
+  const now = new Date();
+  if (calYear === undefined) { calYear = now.getFullYear(); calMonth = now.getMonth(); }
+  renderCalTitle();
+  if (calView === 'month') renderMonth(); else renderList();
+}
+
+async function regenSchedule() {
+  const btn = document.querySelector('.regen-btn');
+  btn.textContent = '↺ Rescheduling…'; btn.disabled = true;
+  await loadCalendar(true);
+  btn.textContent = '↺ Reschedule'; btn.disabled = false;
+}
+
+function setCalView(v) {
+  calView = v;
+  document.getElementById('btn-month').classList.toggle('active', v==='month');
+  document.getElementById('btn-list').classList.toggle('active', v==='list');
+  document.getElementById('month-view').style.display = v==='month' ? '' : 'none';
+  document.getElementById('list-view').style.display  = v==='list'  ? '' : 'none';
+  if (v==='list') initListRange(); else renderMonth();
+}
+
+function calShift(dir) {
+  if (calView==='month') {
+    calMonth += dir;
+    if (calMonth>11){calMonth=0;calYear++;} if(calMonth<0){calMonth=11;calYear--;}
+    renderCalTitle(); renderMonth();
+  } else {
+    const from = new Date(document.getElementById('range-from').value+'T00:00:00');
+    const to   = new Date(document.getElementById('range-to').value+'T00:00:00');
+    from.setMonth(from.getMonth()+dir); to.setMonth(to.getMonth()+dir);
+    document.getElementById('range-from').value = toISO(from);
+    document.getElementById('range-to').value   = toISO(to);
+    renderList();
+  }
+}
+
+function renderCalTitle() {
+  const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('cal-title').textContent = `${months[calMonth]} ${calYear}`;
+}
+
+function getCalDays(year,month) {
+  const first = new Date(year,month,1);
+  const start = new Date(first);
+  const dow = first.getDay();
+  start.setDate(start.getDate() - (dow===0?6:dow-1));
+  const days=[], cur=new Date(start);
+  for(let i=0;i<42;i++){
+    days.push({date:toISO(cur),day:cur.getDate(),inMonth:cur.getMonth()===month});
+    cur.setDate(cur.getDate()+1);
+  }
+  return days;
+}
+
+function renderMonth() {
+  const days = getCalDays(calYear,calMonth);
+  const container = document.getElementById('cal-days');
+  container.innerHTML = '';
+  for (const d of days) {
+    const events = calEvents.filter(e=>e.date===d.date);
+    const cell = document.createElement('div');
+    cell.className = 'cal-day' + (!d.inMonth?' other-month':'') + (d.date===TODAY?' today':'');
+    const visible = events.slice(0,3), extra = events.length-visible.length;
+    let evHTML = visible.map(ev =>
+      `<div class="event-chip ${ev.type}" onclick='openModal("${ev.id}")'>${TYPE_LABELS[ev.type]||ev.type.toUpperCase()} · ${escHtml(ev.title.slice(0,20))}</div>`
+    ).join('');
+    if (extra>0) evHTML += `<div class="more-chip" onclick='showDayEvents("${d.date}")'>+${extra} more</div>`;
+    cell.innerHTML = `<div class="day-num">${d.day}</div><div class="day-events">${evHTML}</div>`;
+    container.appendChild(cell);
+  }
+}
+
+function initListRange() {
+  const now = new Date(), y=now.getFullYear(), m=now.getMonth();
+  document.getElementById('range-from').value = toISO(new Date(y,m,1));
+  document.getElementById('range-to').value   = toISO(new Date(y,m+1,0));
+  renderList();
+}
+
+function renderList() {
+  const from = document.getElementById('range-from').value;
+  const to   = document.getElementById('range-to').value;
+  if (!from||!to) return;
+  const inRange = calEvents.filter(e=>e.date>=from&&e.date<=to);
+  const byDate = {};
+  for (const ev of inRange) { if(!byDate[ev.date]) byDate[ev.date]=[]; byDate[ev.date].push(ev); }
+  const container = document.getElementById('cal-list');
+  container.innerHTML = '';
+  const dates = Object.keys(byDate).sort();
+  if (!dates.length) { container.innerHTML='<div class="list-empty">No content scheduled in this date range.</div>'; return; }
+  for (const date of dates) {
+    const isToday = date===TODAY;
+    let evHTML = byDate[date].map(ev =>
+      `<div class="list-event" onclick='openModal("${ev.id}")'>
+        <span class="list-event-badge ${ev.type}">${ev.type.toUpperCase()}</span>
+        <span class="list-event-title">${escHtml(ev.title)}</span>
+      </div>`
+    ).join('');
+    container.innerHTML += `<div class="list-day">
+      <div class="list-day-header ${isToday?'today-label':''}">${isToday?'● Today — ':''}${formatDateLabel(date)}</div>
+      <div class="list-events">${evHTML}</div>
+    </div>`;
+  }
+  const fd = new Date(from+'T00:00:00');
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('cal-title').textContent=`${months[fd.getMonth()]} ${fd.getFullYear()}`;
+}
+
+function showDayEvents(date) { setCalView('list'); document.getElementById('range-from').value=date; document.getElementById('range-to').value=date; renderList(); }
+
+// ── Modal ─────────────────────────────────────────────────────
+function openModal(id) {
+  const ev = calEvents.find(e=>e.id===id); if(!ev) return;
+  document.getElementById('modal-badge').textContent = ev.type.charAt(0).toUpperCase()+ev.type.slice(1);
+  document.getElementById('modal-badge').className = `modal-badge ${ev.type}`;
+  document.getElementById('modal-date').textContent = formatDateLabel(ev.date);
+  const imgHtml = ev.imageUrl
+    ? `<img src="${ev.imageUrl}" class="modal-image" alt="${escHtml(ev.title)}" onclick="openLightbox('${ev.imageUrl}')" style="cursor:zoom-in" title="Click to enlarge">`
+    : '';
+  document.getElementById('modal-body').innerHTML =
+    imgHtml + `<div class="md-content">${marked.parse(ev.content)}</div>`;
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+// ── Review ────────────────────────────────────────────────────
+const SOPHIE_HASHTAGS = ['#TaxStrategy','#WealthBuilding','#TaxPlanning','#TaxStrategist','#SophieNguyen','#ParamountTax'];
+const STOP_WORDS = new Set(['for','the','and','with','your','how','to','in','of','a','an','on','at','by','from','about','high','income','earners','this','that','these','those','their','they','will','are','was','can','has']);
+
+function extractCaption(content) {
+  let t = content;
+  t = t.replace(/^## (?:Post|Facebook Post|Instagram Post|YouTube Topic) \d+[^#\n]*\n/m, '');
+  t = t.replace(/^# Sophie Nguyen[^\n]*\n/m, '');
+  t = t.replace(/^Generated:[^\n]*\n/gm, '').replace(/^Research Source:[^\n]*\n/gm, '').replace(/^Source:[^\n]*\n/gm, '');
+  t = t.replace(/^Here(?:'s| is)[^\n]*\n/gm, '');
+  t = t.replace(/(?:#{1,3} ?VISUAL CONCEPT|\*\*VISUAL CONCEPT\*\*|\*\*image-concept\.md[^*]*\*\*)[^\0]*/i, '');
+  t = t.replace(/\*?This content is for educational purposes only[^*\n]*\*?/gi, '');
+  t = t.replace(/\*\(Image:[^)]+\)\*/g, '');
+  t = t.replace(/^---\s*$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+  return t;
+}
+
+function extractHashtags(content, title, type) {
+  const found = content.match(/#[A-Za-z]\w{2,}/g) || [];
+  if (found.length >= 3) return [...new Set(found)].slice(0, 10);
+  const words = title.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/)
+    .filter(w => w.length > 3 && !STOP_WORDS.has(w.toLowerCase()))
+    .map(w => '#' + w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).slice(0, 3);
+  const typeTag = { linkedin:'#LinkedInMarketing', facebook:'#FacebookBusiness', instagram:'#InstagramTips', youtube:'#YouTube', research:'' };
+  return [...new Set([...SOPHIE_HASHTAGS.slice(0,4), ...words, typeTag[type]||''])].filter(Boolean).slice(0, 9);
+}
+
+function updateReviewBadge() {
+  const pending = Object.values(reviewApprovals).filter(s=>s==='pending').length;
+  const el = document.getElementById('review-count');
+  if (pending > 0) { el.textContent = pending; el.style.display = ''; }
+  else el.style.display = 'none';
+}
+
+let _calDates = {};
+
+async function loadReview() {
+  document.getElementById('review-body').innerHTML = '<div class="review-empty">Loading review queue…</div>';
+  const [approvals, resR, liR, fbR, igR, ytR, calData] = await Promise.all([
+    fetch('/api/approvals').then(r=>r.json()),
+    fetch('/api/output/research').then(r=>r.json()),
+    fetch('/api/output/linkedin').then(r=>r.json()),
+    fetch('/api/output/facebook').then(r=>r.json()),
+    fetch('/api/output/instagram').then(r=>r.json()),
+    fetch('/api/output/youtube').then(r=>r.json()),
+    fetch('/api/calendar').then(r=>r.json()),
+  ]);
+  reviewApprovals = approvals;
+  _calDates = {};
+  for (const ev of (calData.events || [])) _calDates[ev.id] = ev.date;
+  updateReviewBadge();
+
+  const allItems = [
+    ...parseResearchItems(resR.content),
+    ...parsePostItems('linkedin',  liR.content),
+    ...parsePostItems('facebook',  fbR.content),
+    ...parsePostItems('instagram', igR.content),
+    ...parseYouTubeItems(ytR.content),
+  ];
+
+  if (!allItems.length) {
+    document.getElementById('review-body').innerHTML = '<div class="review-empty">No content generated yet. Run the pipeline first.</div>';
+    return;
+  }
+
+  let html = '';
+  for (const { type, label } of REVIEW_SECTIONS) {
+    const items = allItems.filter(i=>i.type===type);
+    if (!items.length) continue;
+    const pendingCount = items.filter(i=>(reviewApprovals[i.id]??'pending')==='pending').length;
+    html += `<div class="review-section">
+      <div class="review-section-hd">
+        <span class="review-section-title">${label}
+          ${pendingCount>0?`<span class="badge-pending">${pendingCount} pending</span>`:''}
+        </span>
+        <div class="bulk-actions">
+          <button class="btn-approve-all" onclick="bulkAction('${type}','approved')">Approve All</button>
+          <button class="btn-reject-all"  onclick="bulkAction('${type}','rejected')">Reject All</button>
+        </div>
+      </div>
+      <div class="review-cards" id="cards-${type}">
+        ${items.map(item=>renderReviewCard(item)).join('')}
+      </div>
+    </div>`;
+  }
+  document.getElementById('review-body').innerHTML = html || '<div class="review-empty">No content generated yet. Run the pipeline first.</div>';
+}
+
+function parseResearchItems(md) {
+  if (!md) return [];
+  return [{ id:'research', type:'research', title:'Weekly Research Brief', imageUrl:null, content:md }];
+}
+
+function parsePostItems(type, md) {
+  if (!md) return [];
+  const patterns = { linkedin:/## Post (\d+) of \d+ [—–-] (.+)/, facebook:/## Facebook Post (\d+) of \d+ [—–-] (.+)/, instagram:/## Instagram Post (\d+) of \d+ [—–-] (.+)/ };
+  const pat = patterns[type]; if (!pat) return [];
+  const items = [];
+  for (const sec of md.split(/\n---\n/)) {
+    const m = sec.match(pat); if (!m) continue;
+    const index = parseInt(m[1]);
+    items.push({
+      id:`${type}-${index}`, type, index,
+      title:m[2].replace(/\*\*/g,'').trim(),
+      imageUrl: type==='instagram' ? `/images/instagram/post-${index}-portrait.png` : `/images/linkedin/post-${index}-square.png`,
+      content: sec.trim(),
+    });
+  }
+  return items;
+}
+
+function parseYouTubeItems(md) {
+  if (!md) return [];
+  const items = [];
+  for (const sec of md.split(/(?=## YouTube Topic \d+)/)) {
+    const m = sec.match(/## YouTube Topic (\d+)[:\s]+(.+)/); if (!m) continue;
+    items.push({ id:`youtube-${m[1]}`, type:'youtube', index:parseInt(m[1]), title:m[2].replace(/\*\*/g,'').trim(), imageUrl:null, content:sec.trim() });
+  }
+  return items;
+}
+
+function renderReviewCard(item) {
+  const { id, type, title, imageUrl, content } = item;
+  const status = reviewApprovals[id] ?? 'pending';
+  const pillLabel = status==='approved' ? '✓ Approved' : status==='rejected' ? '✗ Rejected' : '● Pending';
+  const typeLabel = { linkedin:'LinkedIn', facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', research:'Research' }[type] || type;
+  const caption = extractCaption(content || '');
+  const tags = extractHashtags(content || '', title, type);
+  const isPortrait = type === 'instagram';
+  const imgCol = imageUrl ? `
+    <div class="rcard-img-col">
+      <img src="${imageUrl}" class="rcard-img${isPortrait?' portrait':''}"
+        onclick="openLightbox('${imageUrl}')"
+        onerror="this.closest('.rcard-img-col').style.display='none'" alt="${escHtml(title)}" title="Click to enlarge">
+      <div class="rcard-img-hint">🔍 Click to enlarge</div>
+    </div>` : '';
+  const schedDate = _calDates[id];
+  const schedHtml = schedDate
+    ? `<span class="rcard-sched live" id="sched-${id}">📅 Scheduled: ${formatDateLabel(schedDate)}</span>`
+    : status === 'approved'
+      ? `<span class="rcard-sched live" id="sched-${id}">📅 Checking schedule…</span>`
+      : `<span class="rcard-sched" id="sched-${id}">Approve to schedule</span>`;
+  const tagsHtml = tags.map(t=>`<span class="hashtag-chip">${escHtml(t)}</span>`).join('');
+
+  return `<div class="review-card ${status}" id="rcard-${id}">
+    <div class="rcard-hd">
+      <span class="rcard-type ${type}">${typeLabel}</span>
+      <span class="rcard-title">${escHtml(title)}</span>
+      <span class="status-pill ${status}" id="pill-${id}">${pillLabel}</span>
+    </div>
+    <div class="rcard-body">
+      ${imgCol}
+      <div class="rcard-content">
+        <div>
+          <div class="rcard-field-label">Caption</div>
+          <div class="rcard-caption">${marked.parse(caption)}</div>
+        </div>
+        <div>
+          <div class="rcard-field-label">Hashtags</div>
+          <div class="rcard-hashtags">${tagsHtml}</div>
+        </div>
+      </div>
+    </div>
+    <div class="rcard-footer">
+      ${schedHtml}
+      <div class="rcard-actions">
+        <button class="btn-approve" id="abtn-${id}" onclick="doApprove('${id}')" ${status==='approved'?'disabled':''}>Approve</button>
+        <button class="btn-reject"  id="rbtn-${id}" onclick="doReject('${id}')"  ${status==='rejected'?'disabled':''}>Reject</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function refreshCard(id) {
+  const status = reviewApprovals[id] ?? 'pending';
+  const card = document.getElementById(`rcard-${id}`);
+  const pill = document.getElementById(`pill-${id}`);
+  const abtn = document.getElementById(`abtn-${id}`);
+  const rbtn = document.getElementById(`rbtn-${id}`);
+  if (!card) return;
+  card.className = `review-card ${status}`;
+  pill.className = `status-pill ${status}`;
+  pill.textContent = status==='approved' ? '✓ Approved' : status==='rejected' ? '✗ Rejected' : '● Pending';
+  abtn.disabled = status === 'approved';
+  rbtn.disabled = status === 'rejected';
+  updateReviewBadge();
+  const type = id.includes('-') ? id.split('-')[0] : id;
+  const section = document.getElementById(`cards-${type}`);
+  if (section) {
+    const pending = [...section.querySelectorAll('.review-card')].filter(c=>c.classList.contains('pending')).length;
+    const badge = section.closest('.review-section')?.querySelector('.badge-pending');
+    if (badge) { badge.textContent = `${pending} pending`; badge.style.display = pending > 0 ? '' : 'none'; }
+  }
+}
+
+async function doApprove(id) {
+  await fetch(`/api/approvals/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'approved'}) });
+  reviewApprovals[id] = 'approved';
+  refreshCard(id);
+  fetch('/api/calendar/regenerate', {method:'POST'}).then(r=>r.json()).then(data=>{
+    const ev = data.events?.find(e=>e.id===id);
+    if (ev) {
+      _calDates[id] = ev.date;
+      const el = document.getElementById(`sched-${id}`);
+      if (el) { el.textContent = `📅 Scheduled: ${formatDateLabel(ev.date)}`; el.className = 'rcard-sched live'; }
+    }
+  });
+}
+
+async function doReject(id) {
+  await fetch(`/api/approvals/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'rejected'}) });
+  reviewApprovals[id] = 'rejected';
+  refreshCard(id);
+  const el = document.getElementById(`sched-${id}`);
+  if (el) { el.textContent = 'Removed from schedule'; el.className = 'rcard-sched'; }
+}
+
+async function bulkAction(type, status) {
+  await fetch(`/api/approvals/bulk/${type}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status}) });
+  for (const key of Object.keys(reviewApprovals)) {
+    if (key === type || key.startsWith(type + '-')) reviewApprovals[key] = status;
+  }
+  if (status === 'approved') fetch('/api/calendar/regenerate', {method:'POST'});
+  await loadReview();
+}
+
+// ── Lightbox ──────────────────────────────────────────────────
+function openLightbox(url) {
+  document.getElementById('lightbox-img').src = url;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+document.addEventListener('keydown', e => { if(e.key==='Escape') { closeLightbox(); closeModal(); } });
+
+// ── Helpers ───────────────────────────────────────────────────
+function toISO(d) { return d.toISOString().slice(0,10); }
+function formatDateLabel(iso) {
+  return new Date(iso+'T00:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+}
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+boot();
+</script>
+</body>
+</html>

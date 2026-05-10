@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: sophie-content-api
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm run server
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: BRAVE_API_KEY
+        sync: false
+      - key: REDDIT_CLIENT_ID
+        sync: false
+      - key: REDDIT_CLIENT_SECRET
+        sync: false
+      - key: REDDIT_USERNAME
+        sync: false
+      - key: REDDIT_PASSWORD
+        sync: false
+      - key: REDDIT_USER_AGENT
+        value: SophieContentBot/1.0
+      - key: FRONTEND_URL
+        sync: false
+    disk:
+      name: output-data
+      mountPath: /opt/render/project/src/output
+      sizeGB: 1

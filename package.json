@@ -1,0 +1,33 @@
+{
+  "name": "sophie-content-plan",
+  "version": "1.0.0",
+  "description": "AI-driven content automation for Sophie Nguyen, Tax Strategist",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "research": "node src/research.js",
+    "generate-linkedin": "node src/generate-linkedin.js",
+    "generate-facebook": "node src/generate-facebook.js",
+    "youtube-planner": "node src/youtube-planner.js",
+    "generate-instagram": "node src/generate-instagram.js",
+    "all": "npm run research && npm run generate-linkedin && npm run generate-instagram && npm run generate-facebook && npm run youtube-planner",
+    "ollama": "cross-env OLLAMA_MODEL=llama3.2:3b npm run all",
+    "mock": "cross-env MOCK=true node src/research.js && cross-env MOCK=true node src/generate-linkedin.js && cross-env MOCK=true node src/generate-facebook.js && cross-env MOCK=true node src/youtube-planner.js",
+    "server": "node src/server.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "dotenv": "^16.5.0",
+    "express": "^5.2.1",
+    "google-trends-api": "^4.9.2",
+    "node-fetch": "^3.3.2",
+    "sharp": "^0.34.5",
+    "snoowrap": "^1.23.0"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0"
+  }
+}

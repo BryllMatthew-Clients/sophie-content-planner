@@ -1,0 +1,36 @@
+# Environment — never commit real keys
+.env
+
+# Generated output
+output/
+
+# Node
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# System
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
+
+# Large client media files in project root
+*.mp4
+*.mov
+*.avi
+*.jfif
+*.jpg
+*.jpeg
+*.png
+*.pdf
+*.pptx
+*.ppt
+*.docx
+*.doc
+Webscraping/
+Edited Video/
+c
+c/
