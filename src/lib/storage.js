@@ -98,4 +98,3 @@ export function readClaudeMd() {
   return fs.readFileSync(path.join(PROJECT_ROOT, 'CLAUDE.md'), 'utf8');
 }
 
-export { readDb, writeDb };
