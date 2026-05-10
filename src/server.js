@@ -6,6 +6,7 @@ import { readLatestOutput, ensureOutputDirs } from './lib/storage.js';
 import { getSchedule, regenerateSchedule } from './lib/calendar.js';
 import { readApprovals, setApproval, bulkSetApproval } from './lib/approvals.js';
 import { readScheduleConfig, writeScheduleConfig, markLastRun } from './lib/pipeline-schedule.js';
+import { readInspirations, addInspiration, removeInspiration, readKeywords, addKeyword, removeKeyword } from './lib/inspiration.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -176,6 +177,36 @@ async function runSequence(names, res) {
   sseSend(res, 'done', { script: 'all', code: 0 });
   res.end();
 }
+
+// ── Inspiration & Keywords ────────────────────────────────────────────────
+app.get('/api/inspiration', (req, res) => res.json(readInspirations()));
+
+app.post('/api/inspiration', express.json(), async (req, res) => {
+  const { url, label } = req.body ?? {};
+  if (!url) return res.status(400).json({ error: 'url required' });
+  try {
+    const source = await addInspiration({ url, label });
+    res.json(source);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/inspiration/:id', (req, res) => {
+  removeInspiration(req.params.id);
+  res.json({ ok: true });
+});
+
+app.get('/api/keywords', (req, res) => res.json(readKeywords()));
+
+app.post('/api/keywords', express.json(), (req, res) => {
+  const { keyword } = req.body ?? {};
+  if (!keyword?.trim()) return res.status(400).json({ error: 'keyword required' });
+  res.json(addKeyword(keyword));
+});
+
+app.delete('/api/keywords/:id', (req, res) => {
+  removeKeyword(req.params.id);
+  res.json({ ok: true });
+});
 
 // GET /api/pipeline-schedule
 app.get('/api/pipeline-schedule', (req, res) => res.json(readScheduleConfig()));

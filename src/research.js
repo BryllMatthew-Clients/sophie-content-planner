@@ -6,6 +6,7 @@ import { ensureOutputDirs, writeOutput } from './lib/storage.js';
 import { markPending } from './lib/approvals.js';
 import { pickTopicsForPlatform, pickSearchQueries } from './lib/topic-pool.js';
 import { buildAvoidList, recordGeneration } from './lib/history.js';
+import { getCustomKeywords, buildInspirationContext } from './lib/inspiration.js';
 
 const SUBREDDITS = [
   'tax',
@@ -73,11 +74,15 @@ async function fetchSearchResults(queries) {
 async function main() {
   ensureOutputDirs();
 
-  // Pick fresh topics from the pool (any platform) and derive search queries from them
-  const selectedTopics = pickTopicsForPlatform('any', 5);
-  const searchQueries = pickSearchQueries(selectedTopics);
+  // Pick fresh topics from the pool (any platform) and derive search queries
+  const selectedTopics  = pickTopicsForPlatform('any', 5);
+  const customKeywords  = getCustomKeywords();
+  const poolQueries     = pickSearchQueries(selectedTopics);
+  // Custom keywords always go first; fill rest from pool up to 8 total
+  const searchQueries   = [...customKeywords, ...poolQueries].slice(0, 8);
 
   console.log(`Researching topics:\n${selectedTopics.map((t, i) => `  ${i + 1}. ${t.topic}`).join('\n')}\n`);
+  if (customKeywords.length) console.log(`Custom keywords: ${customKeywords.join(', ')}\n`);
   console.log('Fetching trending signals...\n');
 
   const [trendsData, searchResults, redditPosts] = await Promise.all([
@@ -89,13 +94,14 @@ async function main() {
   const signalDump = JSON.stringify({ trendsData, searchResults, redditPosts }, null, 2);
   const topicGuidance = `\n\nFocus your research brief on these priority topics this week:\n${selectedTopics.map((t, i) => `  ${i + 1}. ${t.topic} (audience: ${t.audience})`).join('\n')}\n`;
   const avoidList = buildAvoidList(30);
+  const inspirationCtx = buildInspirationContext();
 
   console.log('Synthesizing research brief with Claude...\n');
 
   const systemParts = buildSystemParts('research.md');
   const response = await generateWithCache(
     systemParts,
-    `Here are this week's trending signals. Synthesize them into a 5-topic research brief following the format in your instructions.${topicGuidance}${avoidList}\n\n${signalDump}`,
+    `Here are this week's trending signals. Synthesize them into a 5-topic research brief following the format in your instructions.${topicGuidance}${avoidList}${inspirationCtx}\n\n${signalDump}`,
     { model: 'claude-haiku-4-5', maxTokens: 3000, temperature: 0.5 }
   );
 

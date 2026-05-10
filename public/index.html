@@ -288,6 +288,41 @@
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: rgba(26,36,54,.2); }
 
+  /* ── Inspiration tab ── */
+  .insp-wrap { flex: 1; overflow-y: auto; padding: 24px 30px; background: var(--cream); display: flex; flex-direction: column; gap: 24px; }
+  .insp-card { background: #fff; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .insp-card-hd { padding: 14px 20px 12px; border-bottom: 1px solid var(--border); background: var(--cream2); display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .insp-card-title { font-family: var(--font); font-size: .98rem; font-weight: 700; color: var(--dark); }
+  .insp-card-sub { font-size: .74rem; color: var(--gray); margin-top: 2px; font-family: var(--sans); }
+  .insp-card-body { padding: 18px 20px; }
+
+  .insp-add-row { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .insp-input { flex: 1; min-width: 180px; background: var(--cream); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: .82rem; color: var(--dark); font-family: var(--sans); }
+  .insp-input:focus { outline: none; border-color: var(--olive); }
+  .insp-input-sm { flex: 0 0 130px; }
+  .insp-btn { padding: 8px 16px; background: var(--olive); color: #fff; border: none; border-radius: 6px; font-size: .78rem; font-weight: 600; cursor: pointer; font-family: var(--sans); white-space: nowrap; flex-shrink: 0; }
+  .insp-btn:hover { background: var(--olive2); }
+  .insp-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  .insp-list { display: flex; flex-direction: column; gap: 10px; }
+  .insp-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: var(--cream); border: 1px solid var(--border); border-radius: 7px; }
+  .insp-icon { font-size: 1.05rem; flex-shrink: 0; margin-top: 1px; }
+  .insp-meta { flex: 1; min-width: 0; }
+  .insp-item-label { font-size: .82rem; font-weight: 700; color: var(--dark); word-break: break-all; }
+  .insp-item-url { font-size: .72rem; color: var(--olive); word-break: break-all; margin-top: 1px; }
+  .insp-item-desc { font-size: .74rem; color: var(--gray); margin-top: 4px; line-height: 1.45; }
+  .insp-plat { font-size: .6rem; text-transform: uppercase; font-weight: 700; letter-spacing: .08em; padding: 1px 6px; border-radius: 3px; background: rgba(123,140,63,.12); color: var(--olive); font-family: var(--sans); }
+  .insp-remove { background: none; border: none; color: var(--gray); cursor: pointer; font-size: .85rem; padding: 2px 4px; border-radius: 3px; flex-shrink: 0; }
+  .insp-remove:hover { color: #c0392b; background: rgba(192,57,43,.08); }
+  .insp-empty { color: var(--gray); font-size: .82rem; text-align: center; padding: 28px 0; font-family: var(--sans); }
+
+  .kw-add-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .kw-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .kw-chip { display: flex; align-items: center; gap: 5px; background: rgba(123,140,63,.1); border: 1px solid rgba(123,140,63,.25); border-radius: 20px; padding: 4px 12px 4px 14px; font-size: .78rem; color: #4a5e1a; font-family: var(--sans); }
+  .kw-chip button { background: none; border: none; color: #7B8C3F; cursor: pointer; font-size: .8rem; padding: 0; line-height: 1; display: flex; align-items: center; }
+  .kw-chip button:hover { color: #c0392b; }
+  .kw-empty { color: var(--gray); font-size: .82rem; font-family: var(--sans); }
+
   /* ── Auto-Schedule sidebar section ── */
   .sched-section { padding: 14px 18px 16px; border-top: 1px solid rgba(255,255,255,.07); flex-shrink: 0; }
   .sched-section h2 { font-size: .67rem; text-transform: uppercase; letter-spacing: .12em; color: var(--gray); margin-bottom: 12px; font-family: var(--sans); }
@@ -406,6 +441,7 @@
       <button class="tab" data-tab="youtube">YouTube <span class="dot" id="dot-youtube"></span></button>
       <button class="tab" data-tab="calendar">📅 Calendar <span class="dot" id="dot-calendar"></span></button>
       <button class="tab" data-tab="review">Review <span class="review-badge" id="review-count" style="display:none">0</span></button>
+      <button class="tab" data-tab="inspiration">Inspiration</button>
     </nav>
 
     <div class="viewer empty" id="viewer" style="display:none"></div>
@@ -460,6 +496,46 @@
     <!-- ── Review panel ── -->
     <div class="review-wrap" id="review-panel" style="display:none">
       <div id="review-body"><div class="review-empty">Loading…</div></div>
+    </div>
+
+    <!-- ── Inspiration panel ── -->
+    <div class="insp-wrap" id="insp-panel" style="display:none">
+
+      <!-- Competitor & Inspiration Links -->
+      <div class="insp-card">
+        <div class="insp-card-hd">
+          <div>
+            <div class="insp-card-title">Competitor &amp; Inspiration Links</div>
+            <div class="insp-card-sub">Add Instagram, LinkedIn, or any URL — the AI uses these as style inspiration for future content.</div>
+          </div>
+        </div>
+        <div class="insp-card-body">
+          <div class="insp-add-row">
+            <input class="insp-input" id="insp-url" type="url" placeholder="https://instagram.com/username or post URL…" onkeydown="if(event.key==='Enter')addSource()">
+            <input class="insp-input insp-input-sm" id="insp-label" type="text" placeholder="Label (optional)" onkeydown="if(event.key==='Enter')addSource()">
+            <button class="insp-btn" id="insp-add-btn" onclick="addSource()">+ Add Source</button>
+          </div>
+          <div class="insp-list" id="insp-list"><div class="insp-empty">No sources saved yet.</div></div>
+        </div>
+      </div>
+
+      <!-- Custom Keywords -->
+      <div class="insp-card">
+        <div class="insp-card-hd">
+          <div>
+            <div class="insp-card-title">Custom Research Keywords</div>
+            <div class="insp-card-sub">Keywords added here are used as priority search topics in every Research run.</div>
+          </div>
+        </div>
+        <div class="insp-card-body">
+          <div class="kw-add-row">
+            <input class="insp-input" id="kw-input" type="text" placeholder="e.g. physician S-Corp strategy 2026…" onkeydown="if(event.key==='Enter')addKeyword()">
+            <button class="insp-btn" onclick="addKeyword()">+ Add</button>
+          </div>
+          <div class="kw-chips" id="kw-chips"><span class="kw-empty">No keywords yet.</span></div>
+        </div>
+      </div>
+
     </div>
   </main>
 </div>
@@ -525,9 +601,11 @@ async function switchTab(name) {
   const viewer  = document.getElementById('viewer');
   const cal     = document.getElementById('cal-panel');
   const review  = document.getElementById('review-panel');
-  viewer.style.display = 'none'; cal.style.display = 'none'; review.style.display = 'none';
-  if (name === 'calendar') { cal.style.display = 'flex'; await loadCalendar(); return; }
-  if (name === 'review')   { review.style.display = ''; await loadReview(); return; }
+  const insp    = document.getElementById('insp-panel');
+  viewer.style.display = 'none'; cal.style.display = 'none'; review.style.display = 'none'; insp.style.display = 'none';
+  if (name === 'calendar')    { cal.style.display = 'flex'; await loadCalendar(); return; }
+  if (name === 'review')      { review.style.display = ''; await loadReview(); return; }
+  if (name === 'inspiration') { insp.style.display = ''; await loadInspiration(); return; }
   viewer.style.display = '';
   const { content } = await fetch(`/api/output/${name}`).then(r=>r.json());
   if (!content) {
@@ -966,6 +1044,91 @@ function formatDateLabel(iso) {
 function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 boot();
+
+// ── Inspiration & Keywords ────────────────────────────────────
+const PLAT_ICONS = { instagram:'🟣', linkedin:'💼', facebook:'📘', youtube:'▶️', tiktok:'🎵', twitter:'🐦', web:'🌐' };
+
+function renderSourceList(sources) {
+  const el = document.getElementById('insp-list');
+  if (!sources.length) { el.innerHTML = '<div class="insp-empty">No sources saved yet. Add a URL above.</div>'; return; }
+  el.innerHTML = sources.map(s => {
+    const icon  = PLAT_ICONS[s.platform] || '🌐';
+    const name  = escHtml(s.label || s.url);
+    const url   = escHtml(s.url);
+    const desc  = s.description ? `<div class="insp-item-desc">${escHtml(s.description.slice(0,180))}${s.description.length>180?'…':''}</div>` : '';
+    const title = s.title && s.title !== s.label ? `<div class="insp-item-url">${escHtml(s.title.slice(0,100))}</div>` : `<div class="insp-item-url">${url}</div>`;
+    return `<div class="insp-item">
+      <span class="insp-icon">${icon}</span>
+      <div class="insp-meta">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+          <span class="insp-item-label">${name}</span>
+          <span class="insp-plat">${s.platform}</span>
+        </div>
+        ${title}${desc}
+      </div>
+      <button class="insp-remove" title="Remove" onclick="removeSource('${s.id}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function renderKeywordChips(keywords) {
+  const el = document.getElementById('kw-chips');
+  if (!keywords.length) { el.innerHTML = '<span class="kw-empty">No keywords yet.</span>'; return; }
+  el.innerHTML = keywords.map(k =>
+    `<span class="kw-chip">${escHtml(k.keyword)}<button onclick="removeKeyword('${k.id}')" title="Remove">✕</button></span>`
+  ).join('');
+}
+
+async function loadInspiration() {
+  try {
+    const [{ sources }, { keywords }] = await Promise.all([
+      fetch('/api/inspiration').then(r => r.json()),
+      fetch('/api/keywords').then(r => r.json()),
+    ]);
+    renderSourceList(sources);
+    renderKeywordChips(keywords);
+  } catch { document.getElementById('insp-list').innerHTML = '<div class="insp-empty">Failed to load.</div>'; }
+}
+
+async function addSource() {
+  const urlEl   = document.getElementById('insp-url');
+  const labelEl = document.getElementById('insp-label');
+  const btn     = document.getElementById('insp-add-btn');
+  const url = urlEl.value.trim();
+  if (!url) { urlEl.focus(); return; }
+  btn.disabled = true; btn.textContent = 'Fetching…';
+  try {
+    await fetch('/api/inspiration', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ url, label: labelEl.value.trim() || null })
+    });
+    urlEl.value = ''; labelEl.value = '';
+    await loadInspiration();
+  } catch { alert('Failed to add source.'); }
+  finally { btn.disabled = false; btn.textContent = '+ Add Source'; }
+}
+
+async function removeSource(id) {
+  await fetch(`/api/inspiration/${id}`, { method: 'DELETE' });
+  await loadInspiration();
+}
+
+async function addKeyword() {
+  const el = document.getElementById('kw-input');
+  const kw = el.value.trim();
+  if (!kw) { el.focus(); return; }
+  await fetch('/api/keywords', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ keyword: kw })
+  });
+  el.value = '';
+  await loadInspiration();
+}
+
+async function removeKeyword(id) {
+  await fetch(`/api/keywords/${id}`, { method: 'DELETE' });
+  await loadInspiration();
+}
 
 // ── Auto-Schedule ─────────────────────────────────────────────
 const TZ_LABELS = {

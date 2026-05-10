@@ -4,6 +4,7 @@ import { ensureOutputDirs, readLatestOutput, writeOutput } from './lib/storage.j
 import { markPending } from './lib/approvals.js';
 import { pickTopicsForPlatform, pickAnglesForRun, ANGLES } from './lib/topic-pool.js';
 import { buildAvoidList, recordGeneration } from './lib/history.js';
+import { buildInspirationContext } from './lib/inspiration.js';
 
 const DISCLAIMER = `\n\n*This content is for educational purposes only and does not constitute specific legal, tax, or financial advice. Consult a qualified tax professional for guidance tailored to your situation.*`;
 
@@ -31,7 +32,7 @@ async function main() {
 
   const selectedTopics = pickTopicsForPlatform('facebook', 5);
   const selectedAngles = pickAnglesForRun(5);
-  const researchContext = researchBrief.slice(0, 3000) + buildAvoidList(30);
+  const researchContext = researchBrief.slice(0, 3000) + buildAvoidList(30) + buildInspirationContext();
 
   console.log(`Generating 5 Facebook posts:\n${selectedTopics.map((t, i) => `  ${i + 1}. [${selectedAngles[i]}] ${t.topic}`).join('\n')}\n`);
 
