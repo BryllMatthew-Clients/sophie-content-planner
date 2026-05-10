@@ -6,9 +6,16 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
-// ── Content parser ────────────────────────────────────────────
+// ── Brand tokens ──────────────────────────────────────────────
+const NAVY  = '#0A1628';
+const GOLD  = '#C9A84C';
+const WHITE = '#FFFFFF';
+const GOLD_DIM = '#8B6B2A';
+
+// ── Content parser ─────────────────────────────────────────────
 
 export function parsePostForImage(content, title) {
+  // Headline from hook
   let headline = '';
   const hookPatterns = [
     /(?:HOOK|Hook)[:\s*]+[""]?(.+?)[""]?(?:\n|$)/i,
@@ -23,14 +30,15 @@ export function parsePostForImage(content, title) {
     const lines = content.split('\n').map(l => l.replace(/^[#*>\-•\s]+/, '').trim());
     headline = lines.find(l => l.length > 30 && !/^(Hook|Body|CTA|Flip|Visual|Generated|Research|Sophie)/i.test(l)) || title;
   }
-  if (headline.length > 120) headline = headline.slice(0, 117) + '…';
+  if (headline.length > 110) headline = headline.slice(0, 107) + '…';
 
+  // Bullets
   const bullets = [];
   const bulletRe = /^[\s]*(?:[•\-\*]|\d+[.):]|Step\s+\d+[.:])\s+\*{0,2}(.+?)\*{0,2}$/gm;
   let m;
   while ((m = bulletRe.exec(content)) !== null && bullets.length < 3) {
     const line = m[1].replace(/\*\*/g, '').trim();
-    if (line.length > 10 && line.length < 120) bullets.push(line);
+    if (line.length > 10 && line.length < 100) bullets.push(line);
   }
   if (bullets.length === 0) {
     const boldRe = /\*\*(.+?)\*\*/g;
@@ -40,11 +48,26 @@ export function parsePostForImage(content, title) {
     }
   }
   if (bullets.length === 0) {
-    bullets.push('Legal tax reduction strategies for high-income earners');
-    bullets.push('Entity structuring that protects and grows your wealth');
+    bullets.push('Legal strategies most CPAs never mention');
+    bullets.push('Entity structures that protect and grow wealth');
   }
 
-  return { headline, bullets, title };
+  // CTA — prefer explicitly labelled section, fall back to short default
+  let cta = 'DM "STRATEGY" for a free consult';
+  const ctaPatterns = [
+    /(?:CTA|Call.to.Action)[:\s*]+[""]?(.+?)[""]?(?:\n|$)/i,
+    /\*\*CTA\*\*[:\s]*\n(.+?)(?:\n|$)/i,
+  ];
+  for (const re of ctaPatterns) {
+    const cm = content.match(re);
+    if (cm?.[1]) {
+      const candidate = cm[1].replace(/["""*]/g, '').trim();
+      if (candidate.length > 5) { cta = candidate; break; }
+    }
+  }
+  if (cta.length > 42) cta = cta.slice(0, 39) + '…';
+
+  return { headline, bullets, cta, title };
 }
 
 // ── Text wrap helper ──────────────────────────────────────────
@@ -77,104 +100,159 @@ function escapeXml(str) {
 // ── SVG builder ───────────────────────────────────────────────
 
 function buildSvg(parsed, width, height) {
-  const { headline, bullets } = parsed;
+  const { headline, bullets, cta } = parsed;
 
-  const pad = Math.round(width * 0.08);
-  const innerW = width - pad * 2;
+  const pad  = Math.round(width * 0.08);
+  const padR = Math.round(width * 0.07);
+  const innerW = width - pad - padR;
 
   // Font sizes
-  const badgeFs   = Math.round(width * 0.018);
-  const headlineFs = Math.round(width * 0.048);
-  const bulletFs   = Math.round(width * 0.026);
-  const footerFs   = Math.round(width * 0.020);
-  const brandFs    = Math.round(width * 0.023);
+  const badgeFs    = Math.round(width * 0.017);
+  const headlineFs = Math.round(width * (headline.length < 50 ? 0.056 : headline.length < 80 ? 0.046 : 0.038));
+  const bulletFs   = Math.round(width * 0.025);
+  const ctaFs      = Math.round(width * 0.024);
+  const footerFs   = Math.round(width * 0.019);
 
-  // Headline wrap: ~22 chars per line at 1200px
-  const headlineCharsPerLine = Math.round(innerW / (headlineFs * 0.55));
-  const headlineLines = wrapText(headline, headlineCharsPerLine);
+  // Headline wrap — use 0.62 ratio for Arial Black (wide bold font)
+  const hlChars = Math.round(innerW / (headlineFs * 0.62));
+  const headlineLines = wrapText(headline, hlChars);
+  const headlineLH = headlineFs * 1.28;
 
   // Bullet wrap
-  const bulletCharsPerLine = Math.round((innerW - 36) / (bulletFs * 0.56));
+  const blChars = Math.round((innerW - 40) / (bulletFs * 0.56));
+  const bulletBlocks = bullets.map(b => wrapText(b, blChars));
+  const bulletLH = bulletFs * 1.55;
 
   // Layout Y positions
-  const barH    = 6;
-  const topBarY = 0;
-  const badgeY  = barH + pad * 0.7;
-  const headlineStartY = badgeY + badgeFs + pad * 0.6;
-  const headlineLH = headlineFs * 1.32;
-  const headlineEndY = headlineStartY + headlineLines.length * headlineLH;
-  const dividerY = headlineEndY + pad * 0.4;
-  const bulletStartY = dividerY + pad * 0.45;
-  const bulletLH = bulletFs * 1.5;
+  const topBarH  = 8;
+  const badgeY   = topBarH + pad * 0.75;
+  const accentLineY = badgeY + badgeFs + Math.round(pad * 0.3);
+  const hlStartY = accentLineY + Math.round(pad * 0.6);
+  const hlEndY   = hlStartY + headlineLines.length * headlineLH;
+  const dividerY = hlEndY + Math.round(pad * 0.5);
+  const blStartY = dividerY + Math.round(pad * 0.5);
+  const totalBulletH = bulletBlocks.reduce((s, ls) => s + ls.length * bulletLH + 8, 0);
+  const blEndY   = blStartY + totalBulletH;
 
-  // Calculate total bullet block height
-  const bulletBlocks = bullets.map(b => wrapText(b, bulletCharsPerLine));
-  const totalBulletH = bulletBlocks.reduce((acc, lines) => acc + lines.length * bulletLH + 6, 0);
+  // CTA box
+  const ctaBoxH  = Math.round(ctaFs * 2.4);
+  const ctaBoxY  = blEndY + Math.round(pad * 0.55);
+  const ctaBoxW  = Math.round(innerW * 0.82);
 
-  const footerY = height - pad * 0.6 - barH;
+  // Footer
+  const footerDivY = height - Math.round(pad * 1.1) - footerFs * 2.6 - 8;
+  const footerNameY = footerDivY + footerFs * 1.5;
+  const footerRoleY = footerNameY + footerFs * 1.25;
 
   // Build headline tspans
-  const headlineTspans = headlineLines.map((ln, i) =>
+  const hlTspans = headlineLines.map((ln, i) =>
     `<tspan x="${pad}" dy="${i === 0 ? '0' : headlineLH}">${escapeXml(ln)}</tspan>`
   ).join('');
 
   // Build bullet elements
-  let bulletY = bulletStartY;
+  let bulletY = blStartY;
   const bulletElems = bulletBlocks.map((lines, bi) => {
-    const arrowX = pad;
-    const textX  = pad + 30;
-    const startY = bulletY;
-    const tspans = lines.map((ln, li) =>
+    const markerX = pad;
+    const textX   = pad + 36;
+    const startY  = bulletY;
+    const tspans  = lines.map((ln, li) =>
       `<tspan x="${textX}" dy="${li === 0 ? '0' : bulletLH}">${escapeXml(ln)}</tspan>`
     ).join('');
-    bulletY += lines.length * bulletLH + 6;
+    bulletY += lines.length * bulletLH + 8;
+    // Gold checkmark circle
+    const cy = startY - bulletFs * 0.28;
     return `
-    <text x="${arrowX}" y="${startY}" font-family="Arial,sans-serif" font-size="${bulletFs}" fill="#7B8C3F" font-weight="700">→</text>
-    <text x="${textX}" y="${startY}" font-family="Arial,sans-serif" font-size="${bulletFs}" fill="#2a3a52">${tspans}</text>`;
+    <circle cx="${markerX + 10}" cy="${cy}" r="${Math.round(bulletFs * 0.45)}" fill="${GOLD}" opacity="0.9"/>
+    <text x="${markerX + 10}" y="${cy + Math.round(bulletFs * 0.32)}"
+      font-family="Arial,sans-serif" font-size="${Math.round(bulletFs * 0.62)}" font-weight="900"
+      fill="${NAVY}" text-anchor="middle">${bi + 1}</text>
+    <text x="${textX}" y="${startY}"
+      font-family="Arial,sans-serif" font-size="${bulletFs}" fill="${WHITE}"
+      font-weight="400" opacity="0.92">${tspans}</text>`;
+  }).join('');
+
+  // Decorative background elements
+  const circleR = Math.round(width * 0.55);
+  const diagLineSpacing = Math.round(width * 0.045);
+  const numDiagLines = 8;
+  const diagLines = Array.from({ length: numDiagLines }, (_, i) => {
+    const x1 = width - Math.round(width * 0.28) + i * diagLineSpacing;
+    return `<line x1="${x1}" y1="0" x2="${x1 - height * 0.5}" y2="${height}" stroke="${GOLD}" stroke-width="1" opacity="0.07"/>`;
   }).join('');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+
   <!-- Background -->
-  <rect width="${width}" height="${height}" fill="#F7F3EC"/>
+  <rect width="${width}" height="${height}" fill="${NAVY}"/>
 
-  <!-- Top accent bar -->
-  <rect x="0" y="${topBarY}" width="${width}" height="${barH}" fill="#7B8C3F"/>
+  <!-- Subtle radial glow top-right -->
+  <radialGradient id="glow" cx="85%" cy="10%" r="55%">
+    <stop offset="0%" stop-color="${GOLD}" stop-opacity="0.10"/>
+    <stop offset="100%" stop-color="${NAVY}" stop-opacity="0"/>
+  </radialGradient>
+  <rect width="${width}" height="${height}" fill="url(#glow)"/>
 
-  <!-- Badge -->
+  <!-- Diagonal texture lines (right side) -->
+  ${diagLines}
+
+  <!-- Large faint circle accent bottom-left -->
+  <circle cx="${Math.round(width * -0.05)}" cy="${Math.round(height * 1.05)}"
+    r="${circleR}" fill="none" stroke="${GOLD}" stroke-width="${Math.round(width * 0.003)}" opacity="0.08"/>
+
+  <!-- Top gold bar -->
+  <rect x="0" y="0" width="${width}" height="${topBarH}" fill="${GOLD}"/>
+
+  <!-- Eyebrow badge -->
   <text x="${pad}" y="${badgeY + badgeFs}"
-    font-family="Arial,sans-serif" font-size="${badgeFs}" font-weight="700"
-    letter-spacing="2" fill="#7B8C3F" text-transform="uppercase">TAX STRATEGY · SOPHIE NGUYEN</text>
+    font-family="Arial,Helvetica,sans-serif" font-size="${badgeFs}" font-weight="700"
+    letter-spacing="3" fill="${GOLD}">TAX STRATEGY · SOPHIE NGUYEN</text>
+
+  <!-- Short gold accent line under badge -->
+  <rect x="${pad}" y="${accentLineY}" width="${Math.round(width * 0.12)}" height="2" fill="${GOLD}"/>
 
   <!-- Headline -->
-  <text x="${pad}" y="${headlineStartY + headlineFs * 0.85}"
-    font-family="Georgia,'Times New Roman',serif" font-size="${headlineFs}"
-    font-weight="400" fill="#1a2436" line-height="${headlineLH}">
-    ${headlineTspans}
+  <text x="${pad}" y="${hlStartY + headlineFs * 0.82}"
+    font-family="'Arial Black',Arial,Helvetica,sans-serif" font-size="${headlineFs}"
+    font-weight="900" fill="${WHITE}">
+    ${hlTspans}
   </text>
 
   <!-- Divider -->
-  <rect x="${pad}" y="${dividerY}" width="${innerW}" height="1" fill="#1a2436" opacity="0.15"/>
+  <rect x="${pad}" y="${dividerY}" width="${innerW}" height="1" fill="${GOLD}" opacity="0.35"/>
 
   <!-- Bullets -->
   ${bulletElems}
 
+  <!-- CTA box -->
+  <rect x="${pad}" y="${ctaBoxY}" width="${ctaBoxW}" height="${ctaBoxH}"
+    rx="${Math.round(ctaBoxH * 0.18)}" fill="${GOLD}"/>
+  <text x="${pad + Math.round(ctaBoxW * 0.5)}" y="${ctaBoxY + Math.round(ctaBoxH * 0.63)}"
+    font-family="Arial,Helvetica,sans-serif" font-size="${ctaFs}" font-weight="700"
+    fill="${NAVY}" text-anchor="middle">${escapeXml(cta)} →</text>
+
+  <!-- Brand tagline -->
+  <text x="${pad}" y="${ctaBoxY + ctaBoxH + Math.round(pad * 0.85)}"
+    font-family="Georgia,'Times New Roman',serif" font-size="${Math.round(footerFs * 1.05)}"
+    font-style="italic" fill="${GOLD}" opacity="0.55">Legally. Strategically. Permanently.</text>
+
   <!-- Footer divider -->
-  <rect x="${pad}" y="${footerY - footerFs * 2.2}" width="${innerW}" height="1" fill="#1a2436" opacity="0.1"/>
+  <rect x="${pad}" y="${footerDivY}" width="${innerW}" height="1" fill="${GOLD}" opacity="0.25"/>
 
-  <!-- Footer left: Name + role -->
-  <text x="${pad}" y="${footerY - footerFs * 0.9}"
-    font-family="Arial,sans-serif" font-size="${footerFs}" font-weight="700" fill="#1a2436">Sophie Nguyen</text>
-  <text x="${pad}" y="${footerY}"
-    font-family="Arial,sans-serif" font-size="${Math.round(footerFs * 0.82)}" fill="#666666">Tax Strategist · Paramount Tax Richardson</text>
+  <!-- Footer: name + role -->
+  <text x="${pad}" y="${footerNameY}"
+    font-family="Arial,Helvetica,sans-serif" font-size="${footerFs}" font-weight="700" fill="${WHITE}">Sophie Nguyen</text>
+  <text x="${pad}" y="${footerRoleY}"
+    font-family="Arial,Helvetica,sans-serif" font-size="${Math.round(footerFs * 0.85)}" fill="${GOLD}" opacity="0.8">Tax Strategist · Paramount Tax Richardson</text>
 
-  <!-- Footer right: Brand -->
-  <text x="${width - pad}" y="${footerY - Math.round(footerFs * 0.3)}"
-    font-family="Arial,sans-serif" font-size="${brandFs}" font-weight="700"
-    fill="#7B8C3F" text-anchor="end">sophie.so</text>
+  <!-- Footer: site (right-aligned) -->
+  <text x="${width - padR}" y="${footerNameY}"
+    font-family="'Arial Black',Arial,Helvetica,sans-serif" font-size="${Math.round(footerFs * 1.1)}" font-weight="900"
+    fill="${GOLD}" text-anchor="end">sophie.so</text>
 
-  <!-- Bottom accent bar -->
-  <rect x="0" y="${height - barH}" width="${width}" height="${barH}" fill="#7B8C3F"/>
+  <!-- Bottom gold bar -->
+  <rect x="0" y="${height - topBarH}" width="${width}" height="${topBarH}" fill="${GOLD}"/>
+
 </svg>`;
 }
 
@@ -190,16 +268,8 @@ export async function generateImages(parsed, index) {
   const squarePath   = path.join(squareDir,   `${slug}-square.png`);
   const portraitPath = path.join(portraitDir, `${slug}-portrait.png`);
 
-  const squareSvg   = buildSvg(parsed, 1200, 1200);
-  const portraitSvg = buildSvg(parsed, 1080, 1350);
-
-  await sharp(Buffer.from(squareSvg))
-    .png()
-    .toFile(squarePath);
-
-  await sharp(Buffer.from(portraitSvg))
-    .png()
-    .toFile(portraitPath);
+  await sharp(Buffer.from(buildSvg(parsed, 1200, 1200))).png().toFile(squarePath);
+  await sharp(Buffer.from(buildSvg(parsed, 1080, 1350))).png().toFile(portraitPath);
 
   return {
     square:   `/images/linkedin/${slug}-square.png`,
@@ -207,5 +277,4 @@ export async function generateImages(parsed, index) {
   };
 }
 
-// No-op for backwards compatibility (was used to close Puppeteer browser)
 export async function closeBrowser() {}
