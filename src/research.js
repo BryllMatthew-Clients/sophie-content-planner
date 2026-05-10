@@ -2,11 +2,11 @@ import 'dotenv/config';
 import { getAllTrendingQueries } from './lib/trends.js';
 import { search } from './lib/search.js';
 import { generateWithCache, extractText, buildSystemParts } from './lib/claude.js';
-import { ensureOutputDirs, writeOutput } from './lib/storage.js';
+import { ensureOutputDirs, writeOutput, initStore } from './lib/storage.js';
 import { markPending } from './lib/approvals.js';
 import { pickTopicsForPlatform, pickSearchQueries } from './lib/topic-pool.js';
 import { buildAvoidList, recordGeneration } from './lib/history.js';
-import { getCustomKeywords, buildInspirationContext, buildInspirationContentForResearch } from './lib/inspiration.js';
+import { getCustomKeywords, buildInspirationContentForResearch } from './lib/inspiration.js';
 
 const SUBREDDITS = [
   'tax',
@@ -73,6 +73,7 @@ async function fetchSearchResults(queries) {
 
 async function main() {
   ensureOutputDirs();
+  await initStore();
 
   const selectedTopics  = pickTopicsForPlatform('any', 5);
   const customKeywords  = await getCustomKeywords();

@@ -23,7 +23,9 @@ services:
         value: SophieContentBot/1.0
       - key: FRONTEND_URL
         value: https://sophie-content-planner.vercel.app
-      - key: MONGODB_URI
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
         sync: false
     disk:
       name: output-data

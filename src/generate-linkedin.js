@@ -2,7 +2,7 @@ import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
 import { generateWithCache, extractText, buildSystemParts } from './lib/claude.js';
-import { ensureOutputDirs, readLatestOutput, writeOutput } from './lib/storage.js';
+import { ensureOutputDirs, readLatestOutput, writeOutput, initStore } from './lib/storage.js';
 import { parsePostForImage, generateImages, closeBrowser } from './lib/image-gen.js';
 import { markPending } from './lib/approvals.js';
 import { pickTopicsForPlatform, pickAnglesForRun, ANGLES } from './lib/topic-pool.js';
@@ -26,6 +26,7 @@ async function generatePost(topicObj, angleKey, researchContext, systemParts, in
 
 async function main() {
   ensureOutputDirs();
+  await initStore();
 
   const researchBrief = await readLatestOutput('research');
   if (!researchBrief) {

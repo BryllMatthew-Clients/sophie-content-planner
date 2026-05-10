@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { kvGet, kvSet } from './kv.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
@@ -15,17 +16,52 @@ function dbFile(name) {
   return path.join(getOutputDir(), '.db', `${name}.json`);
 }
 
-function readDb(name) {
+// ── In-memory store (populated on init, stays in sync on writes) ──
+const mem = {};
+
+// Call once on startup — loads all collections from Upstash (or local files)
+const DB_NAMES = ['outputs', 'approvals', 'captions', 'history', 'schedule', 'inspiration'];
+
+export async function initStore() {
+  await Promise.all(DB_NAMES.map(async name => {
+    const remote = await kvGet(`sophie:db:${name}`);
+    if (remote != null) {
+      mem[name] = remote;
+      // Also write to local file so scripts that run outside the server have it
+      _writeLocalFile(name, remote);
+    } else {
+      mem[name] = _readLocalFile(name);
+    }
+  }));
+}
+
+function _readLocalFile(name) {
   try { return JSON.parse(fs.readFileSync(dbFile(name), 'utf8')); }
   catch { return {}; }
 }
 
-function writeDb(name, data) {
-  const f = dbFile(name);
-  fs.mkdirSync(path.dirname(f), { recursive: true });
-  fs.writeFileSync(f, JSON.stringify(data, null, 2), 'utf8');
+function _writeLocalFile(name, data) {
+  try {
+    const f = dbFile(name);
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, JSON.stringify(data, null, 2), 'utf8');
+  } catch {}
 }
 
+// Synchronous read — from in-memory cache
+export function readDb(name) {
+  if (mem[name] == null) mem[name] = _readLocalFile(name);
+  return mem[name];
+}
+
+// Synchronous write — updates memory + local file, then syncs to Upstash in background
+export function writeDb(name, data) {
+  mem[name] = data;
+  _writeLocalFile(name, data);
+  kvSet(`sophie:db:${name}`, data); // fire-and-forget background sync
+}
+
+// ── Output dirs ───────────────────────────────────────────────────
 export function ensureOutputDirs() {
   const base = getOutputDir();
   for (const sub of ['images']) {
@@ -47,12 +83,11 @@ export function writeOutput(type, content) {
   const store = readDb('outputs');
   store[type] = { content, generatedAt: new Date().toISOString() };
   writeDb('outputs', store);
-  return `file://outputs/${type}`;
+  return `db://outputs/${type}`;
 }
 
 export function readLatestOutput(type) {
-  const store = readDb('outputs');
-  return store[type]?.content ?? null;
+  return readDb('outputs')[type]?.content ?? null;
 }
 
 export function readPrompt(filename) {
@@ -63,5 +98,4 @@ export function readClaudeMd() {
   return fs.readFileSync(path.join(PROJECT_ROOT, 'CLAUDE.md'), 'utf8');
 }
 
-// Exposed so other libs can share the same .db directory
 export { readDb, writeDb };

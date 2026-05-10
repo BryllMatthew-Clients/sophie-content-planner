@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import { spawn } from 'child_process';
 import cron from 'node-cron';
-import { readLatestOutput, ensureOutputDirs } from './lib/storage.js';
+import { readLatestOutput, ensureOutputDirs, initStore } from './lib/storage.js';
 import { getSchedule, regenerateSchedule } from './lib/calendar.js';
 import { readApprovals, setApproval, bulkSetApproval } from './lib/approvals.js';
 import { readCaptions, setCaption, deleteCaption } from './lib/captions.js';
@@ -247,5 +247,7 @@ app.post('/api/pipeline-schedule', express.json(), async (req, res) => {
 });
 
 ensureOutputDirs();
-app.listen(PORT, () => console.log(`Sophie's Automated Content Planner → http://localhost:${PORT}`));
-try { applySchedule(readScheduleConfig()); } catch (err) { console.error('[Schedule] Could not load config:', err.message); }
+initStore().then(() => {
+  app.listen(PORT, () => console.log(`Sophie's Automated Content Planner → http://localhost:${PORT}`));
+  try { applySchedule(readScheduleConfig()); } catch (err) { console.error('[Schedule] Could not load config:', err.message); }
+}).catch(err => { console.error('[Store] Init failed:', err.message); process.exit(1); });

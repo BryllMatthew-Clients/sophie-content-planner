@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
-import { ensureOutputDirs, readLatestOutput, writeOutput, readLatestJson } from './lib/storage.js';
+import { ensureOutputDirs, readLatestOutput, writeOutput, readLatestJson, initStore } from './lib/storage.js';
 import { parsePostForImage, generateImages, closeBrowser } from './lib/image-gen.js';
 import { markPending } from './lib/approvals.js';
 
@@ -20,6 +20,7 @@ function extractTopicsAndPosts(md) {
 
 async function main() {
   ensureOutputDirs();
+  await initStore();
 
   const linkedInMd = await readLatestOutput('linkedin');
   if (!linkedInMd) {

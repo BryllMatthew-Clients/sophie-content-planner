@@ -1,12 +1,13 @@
 import 'dotenv/config';
 import { generateWithCache, extractText, buildSystemParts } from './lib/claude.js';
-import { ensureOutputDirs, readLatestOutput, writeOutput } from './lib/storage.js';
+import { ensureOutputDirs, readLatestOutput, writeOutput, initStore } from './lib/storage.js';
 import { markPending } from './lib/approvals.js';
 import { pickTopicsForPlatform } from './lib/topic-pool.js';
 import { buildAvoidList, recordGeneration } from './lib/history.js';
 
 async function main() {
   ensureOutputDirs();
+  await initStore();
 
   const researchBrief = await readLatestOutput('research');
   if (!researchBrief) {
