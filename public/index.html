@@ -570,6 +570,7 @@
         <button class="btn secondary" data-script="youtube"><span>▶️</span> YouTube</button>
         <button class="btn secondary" data-script="calendar" style="cursor:default;opacity:.5">📅 Calendar</button>
         <button class="btn run-all" data-script="all"><span>⚡</span> Run Full Pipeline</button>
+        <button class="btn secondary" id="clear-results-btn" onclick="clearResults()" style="grid-column:span 2;justify-content:center;color:rgba(255,100,80,.8);border-color:rgba(255,100,80,.2)">🗑 Clear All Results</button>
       </div>
     </div>
     <!-- Auto-Schedule -->
@@ -793,6 +794,19 @@ async function boot() {
   const firstWithContent = ['linkedin','facebook','instagram','youtube'].find(t => s.outputs[t]);
   switchTab(firstWithContent || 'calendar');
   loadSchedule();
+}
+
+async function clearResults() {
+  if (!confirm('Clear all generated content, approvals, and captions?')) return;
+  const btn = document.getElementById('clear-results-btn');
+  btn.disabled = true; btn.textContent = 'Clearing…';
+  await fetch('/api/output/clear', { method: 'POST' });
+  reviewApprovals = {}; reviewCaptions = {}; reviewFeedback = {};
+  for (const t of ALL_TYPES) document.getElementById(`dot-${t}`)?.classList.remove('has-content');
+  document.getElementById('dot-calendar')?.classList.remove('has-content');
+  document.getElementById('review-count').style.display = 'none';
+  btn.disabled = false; btn.textContent = '🗑 Clear All Results';
+  switchTab('calendar');
 }
 
 // ── Tabs ──────────────────────────────────────────────────────

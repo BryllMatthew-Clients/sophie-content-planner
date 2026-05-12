@@ -3,7 +3,7 @@ import fs from 'fs';
 import express from 'express';
 import { spawn } from 'child_process';
 import cron from 'node-cron';
-import { readLatestOutput, ensureOutputDirs, initStore } from './lib/storage.js';
+import { readLatestOutput, ensureOutputDirs, initStore, writeDb } from './lib/storage.js';
 import { regenerateFromUpstash } from './lib/image-gen.js';
 import { getSchedule, regenerateSchedule } from './lib/calendar.js';
 import { readApprovals, setApproval, bulkSetApproval } from './lib/approvals.js';
@@ -112,6 +112,14 @@ app.get('/api/output/:type', async (req, res) => {
   const { type } = req.params;
   if (!OUTPUT_TYPES.includes(type)) return res.status(400).json({ error: 'Unknown output type' });
   res.json({ content: (await readLatestOutput(type)) ?? null });
+});
+
+// POST /api/output/clear — wipe all generated content and approvals
+app.post('/api/output/clear', (req, res) => {
+  writeDb('outputs',   {});
+  writeDb('approvals', {});
+  writeDb('captions',  {});
+  res.json({ ok: true });
 });
 
 // GET /api/approvals
