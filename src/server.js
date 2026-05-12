@@ -1,8 +1,10 @@
 import 'dotenv/config';
+import fs from 'fs';
 import express from 'express';
 import { spawn } from 'child_process';
 import cron from 'node-cron';
 import { readLatestOutput, ensureOutputDirs, initStore } from './lib/storage.js';
+import { regenerateFromUpstash } from './lib/image-gen.js';
 import { getSchedule, regenerateSchedule } from './lib/calendar.js';
 import { readApprovals, setApproval, bulkSetApproval } from './lib/approvals.js';
 import { saveFeedback, getAllFeedback } from './lib/feedback.js';
@@ -86,7 +88,24 @@ function applySchedule(config) {
 }
 
 app.use(express.static(path.join(ROOT, 'public')));
-app.use('/images', express.static(path.join(ROOT, 'output', 'images')));
+
+// Serve images — check filesystem first, then regenerate from Upstash SVG if missing
+app.get('/images/:dir/:file', async (req, res) => {
+  const { dir, file } = req.params;
+  if (!file.endsWith('.png')) return res.status(400).end();
+  const filePath = path.join(ROOT, 'output', 'images', dir, file);
+  if (fs.existsSync(filePath)) return res.sendFile(filePath);
+  try {
+    const png = await regenerateFromUpstash(dir, file);
+    if (!png) return res.status(404).end();
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(png);
+  } catch (err) {
+    console.error(`[Images] Failed to regenerate ${dir}/${file}:`, err.message);
+    res.status(500).end();
+  }
+});
 
 // GET /api/output/:type
 app.get('/api/output/:type', async (req, res) => {

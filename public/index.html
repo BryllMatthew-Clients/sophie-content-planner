@@ -1110,12 +1110,10 @@ function parsePostItems(type, md) {
   for (const sec of md.split(/\n---\n/)) {
     const m = sec.match(pat); if (!m) continue;
     const index = parseInt(m[1]);
-    items.push({
-      id:`${type}-${index}`, type, index,
-      title:m[2].replace(/\*\*/g,'').trim(),
-      imageUrl: type==='instagram' ? `/images/instagram/post-${index}-portrait.png` : `/images/linkedin/post-${index}-square.png`,
-      content: sec.trim(),
-    });
+    const imageUrl = type==='instagram' ? `/images/instagram/post-${index}-portrait.png`
+                   : type==='facebook'  ? `/images/facebook/post-${index}-square.png`
+                   :                     `/images/linkedin/post-${index}-square.png`;
+    items.push({ id:`${type}-${index}`, type, index, title:m[2].replace(/\*\*/g,'').trim(), imageUrl, content: sec.trim() });
   }
   return items;
 }

@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { readDb, writeDb } from './storage.js';
+import { readDb, writeDbSync } from './storage.js';
 
 const DB = 'inspiration';
 
@@ -11,8 +11,8 @@ function readData() {
   };
 }
 
-function writeData(data) {
-  writeDb(DB, data);
+async function writeData(data) {
+  await writeDbSync(DB, data);
 }
 
 function detectPlatform(url) {
@@ -31,18 +31,18 @@ export function readInspirations() {
   return { sources: [...sources].sort((a, b) => b.addedAt.localeCompare(a.addedAt)) };
 }
 
-export function addInspiration({ url, label }) {
+export async function addInspiration({ url, label }) {
   const data = readData();
   const source = { id: crypto.randomUUID(), url, label: label?.trim() || null, platform: detectPlatform(url), addedAt: new Date().toISOString() };
   data.sources.push(source);
-  writeData(data);
+  await writeData(data);
   return source;
 }
 
-export function removeInspiration(id) {
+export async function removeInspiration(id) {
   const data = readData();
   data.sources = data.sources.filter(s => s.id !== id);
-  writeData(data);
+  await writeData(data);
 }
 
 // ── Keywords CRUD ────────────────────────────────────────────────
@@ -51,18 +51,18 @@ export function readKeywords() {
   return { keywords: [...keywords].sort((a, b) => b.addedAt.localeCompare(a.addedAt)) };
 }
 
-export function addKeyword(keyword) {
+export async function addKeyword(keyword) {
   const data = readData();
   const entry = { id: crypto.randomUUID(), keyword: keyword.trim(), addedAt: new Date().toISOString() };
   data.keywords.push(entry);
-  writeData(data);
+  await writeData(data);
   return entry;
 }
 
-export function removeKeyword(id) {
+export async function removeKeyword(id) {
   const data = readData();
   data.keywords = data.keywords.filter(k => k.id !== id);
-  writeData(data);
+  await writeData(data);
 }
 
 // ── Page content scraper (used at research time) ─────────────────

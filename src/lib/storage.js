@@ -58,11 +58,18 @@ export function readDb(name) {
   return mem[name];
 }
 
-// Synchronous write — updates memory + local file, then syncs to Upstash in background
+// Fire-and-forget write — fast, used by generation pipeline scripts
 export function writeDb(name, data) {
   mem[name] = data;
   _writeLocalFile(name, data);
   kvSet(`sophie:db:${name}`, data); // fire-and-forget background sync
+}
+
+// Awaited write — guarantees Upstash is updated before returning (use for user-facing CRUD)
+export async function writeDbSync(name, data) {
+  mem[name] = data;
+  _writeLocalFile(name, data);
+  await kvSet(`sophie:db:${name}`, data);
 }
 
 // ── Output dirs ───────────────────────────────────────────────────
@@ -71,6 +78,7 @@ export function ensureOutputDirs() {
   for (const sub of ['images']) {
     fs.mkdirSync(path.join(base, sub, 'linkedin'),  { recursive: true });
     fs.mkdirSync(path.join(base, sub, 'instagram'), { recursive: true });
+    fs.mkdirSync(path.join(base, sub, 'facebook'),  { recursive: true });
   }
 }
 

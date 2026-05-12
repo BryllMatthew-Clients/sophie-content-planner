@@ -2,6 +2,7 @@ import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { kvSet, kvGet } from './kv.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -265,16 +266,47 @@ export async function generateImages(parsed, index) {
   fs.mkdirSync(portraitDir, { recursive: true });
 
   const slug = `post-${index}`;
-  const squarePath   = path.join(squareDir,   `${slug}-square.png`);
-  const portraitPath = path.join(portraitDir, `${slug}-portrait.png`);
+  const squareSvg   = buildSvg(parsed, 1200, 1200);
+  const portraitSvg = buildSvg(parsed, 1080, 1350);
 
-  await sharp(Buffer.from(buildSvg(parsed, 1200, 1200))).png().toFile(squarePath);
-  await sharp(Buffer.from(buildSvg(parsed, 1080, 1350))).png().toFile(portraitPath);
+  await Promise.all([
+    sharp(Buffer.from(squareSvg)).png().toFile(path.join(squareDir,   `${slug}-square.png`)),
+    sharp(Buffer.from(portraitSvg)).png().toFile(path.join(portraitDir, `${slug}-portrait.png`)),
+    // Persist SVGs to Upstash so images can be regenerated after a redeploy
+    kvSet(`sophie:svg:linkedin:${slug}-square`,   squareSvg),
+    kvSet(`sophie:svg:instagram:${slug}-portrait`, portraitSvg),
+  ]);
 
   return {
     square:   `/images/linkedin/${slug}-square.png`,
     portrait: `/images/instagram/${slug}-portrait.png`,
   };
+}
+
+// Generates a single 1200x1200 square image for Facebook (or any platform dir)
+export async function generatePlatformImage(parsed, index, platformDir) {
+  const imgDir = path.join(ROOT, 'output', 'images', platformDir);
+  fs.mkdirSync(imgDir, { recursive: true });
+  const slug = `post-${index}`;
+  const svg  = buildSvg(parsed, 1200, 1200);
+  await Promise.all([
+    sharp(Buffer.from(svg)).png().toFile(path.join(imgDir, `${slug}-square.png`)),
+    kvSet(`sophie:svg:${platformDir}:${slug}-square`, svg),
+  ]);
+  return `/images/${platformDir}/${slug}-square.png`;
+}
+
+// Regenerate a PNG from its Upstash SVG and cache it to the local filesystem.
+// Returns the PNG buffer, or null if the SVG isn't in Upstash.
+export async function regenerateFromUpstash(dir, file) {
+  const slug = file.replace('.png', '');
+  const svg  = await kvGet(`sophie:svg:${dir}:${slug}`);
+  if (!svg || typeof svg !== 'string') return null;
+  const png = await sharp(Buffer.from(svg)).png().toBuffer();
+  const filePath = path.join(ROOT, 'output', 'images', dir, file);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, png);
+  return png;
 }
 
 export async function closeBrowser() {}

@@ -1,6 +1,9 @@
 import 'dotenv/config';
+import fs from 'fs';
+import path from 'path';
 import { generateWithCache, extractText, buildSystemParts } from './lib/claude.js';
 import { ensureOutputDirs, readLatestOutput, writeOutput, initStore } from './lib/storage.js';
+import { parsePostForImage, generatePlatformImage } from './lib/image-gen.js';
 import { markPending } from './lib/approvals.js';
 import { pickTopicsForPlatform, pickAnglesForRun, ANGLES } from './lib/topic-pool.js';
 import { buildAvoidList, recordGeneration } from './lib/history.js';
@@ -59,6 +62,21 @@ async function main() {
   const filePath = await writeOutput('facebook', content);
   await markPending('facebook', posts.length);
   await recordGeneration({ topics: selectedTopics.map(t => t.topic), angles: selectedAngles });
+
+  console.log('\nGenerating static images...');
+  const imageIndex = {};
+  for (let i = 0; i < posts.length; i++) {
+    const topic = (selectedTopics[i] ?? selectedTopics[0]).topic.replace(/\*\*/g, '');
+    const parsed = parsePostForImage(posts[i], topic);
+    process.stdout.write(`  Image ${i + 1}/5 (${topic.slice(0, 30)})...`);
+    imageIndex[i + 1] = await generatePlatformImage(parsed, i + 1, 'facebook');
+    console.log(' done');
+  }
+
+  const imgDir = path.join(process.env.OUTPUT_DIR || 'output', 'facebook');
+  fs.mkdirSync(imgDir, { recursive: true });
+  const jsonPath = path.join(imgDir, `${date}-facebook-images.json`);
+  fs.writeFileSync(jsonPath, JSON.stringify(imageIndex, null, 2));
   console.log(`\n5 Facebook posts saved to: ${filePath}`);
 }
 
