@@ -5,6 +5,7 @@ import cron from 'node-cron';
 import { readLatestOutput, ensureOutputDirs, initStore } from './lib/storage.js';
 import { getSchedule, regenerateSchedule } from './lib/calendar.js';
 import { readApprovals, setApproval, bulkSetApproval } from './lib/approvals.js';
+import { saveFeedback, getAllFeedback } from './lib/feedback.js';
 import { readCaptions, setCaption, deleteCaption } from './lib/captions.js';
 import { readScheduleConfig, writeScheduleConfig, markLastRun } from './lib/pipeline-schedule.js';
 import { readInspirations, addInspiration, removeInspiration, readKeywords, addKeyword, removeKeyword } from './lib/inspiration.js';
@@ -106,10 +107,14 @@ app.post('/api/approvals/bulk/:type', express.json(), async (req, res) => {
 
 // POST /api/approvals/:id
 app.post('/api/approvals/:id', express.json(), async (req, res) => {
-  const { status } = req.body ?? {};
+  const { status, reason } = req.body ?? {};
   if (!['approved', 'rejected', 'pending'].includes(status)) return res.status(400).json({ error: 'invalid status' });
+  if (status === 'rejected' && reason) saveFeedback(req.params.id, reason);
   res.json(await setApproval(req.params.id, status));
 });
+
+// GET /api/feedback
+app.get('/api/feedback', (req, res) => res.json(getAllFeedback()));
 
 // GET /api/calendar
 app.get('/api/calendar', (req, res) => {

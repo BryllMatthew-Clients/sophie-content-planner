@@ -20,7 +20,7 @@ function dbFile(name) {
 const mem = {};
 
 // Call once on startup — loads all collections from Upstash (or local files)
-const DB_NAMES = ['outputs', 'approvals', 'captions', 'history', 'schedule', 'inspiration'];
+const DB_NAMES = ['outputs', 'approvals', 'captions', 'history', 'schedule', 'inspiration', 'feedback'];
 
 export async function initStore() {
   await Promise.all(DB_NAMES.map(async name => {

@@ -410,6 +410,17 @@
   .btn-reset-caption:hover { color: #CC3228; }
   .caption-edited-badge { font-size: .58rem; background: rgba(110,110,115,.12); color: var(--gray); border-radius: 4px; padding: 1px 6px; font-weight: 600; font-family: var(--font); margin-left: 6px; vertical-align: middle; }
 
+  /* Rejection reason */
+  .reject-reason-row { padding: 10px 16px 12px; border-top: 1px solid rgba(255,59,48,.12); background: rgba(255,59,48,.03); display: flex; flex-direction: column; gap: 7px; }
+  .reject-reason-label { font-size: .68rem; color: #CC3228; font-weight: 600; font-family: var(--font); }
+  .reject-reason-ta { width: 100%; border: 1.5px solid rgba(255,59,48,.3); border-radius: 7px; padding: 8px 10px; font-size: .76rem; color: var(--ink); background: var(--surface); resize: none; font-family: var(--font); line-height: 1.5; outline: none; }
+  .reject-reason-ta:focus { border-color: #FF3B30; }
+  .reject-reason-btns { display: flex; gap: 6px; justify-content: flex-end; }
+  .btn-submit-reject { padding: 5px 14px; border-radius: 7px; background: #FF3B30; color: #fff; border: none; font-size: .7rem; font-weight: 600; cursor: pointer; font-family: var(--font); transition: background .15s; }
+  .btn-submit-reject:hover { background: #D6342F; }
+  .btn-cancel-reject { padding: 5px 12px; border-radius: 7px; background: transparent; color: var(--gray); border: 1px solid var(--border); font-size: .7rem; cursor: pointer; font-family: var(--font); }
+  .rejected-reason-note { font-size: .68rem; color: #CC3228; background: rgba(255,59,48,.06); border: 1px solid rgba(255,59,48,.12); border-radius: 5px; padding: 4px 10px; font-family: var(--font); font-style: italic; }
+
   .kw-add-row { display: flex; gap: 8px; margin-bottom: 16px; }
   .kw-chips { display: flex; flex-wrap: wrap; gap: 7px; }
   .kw-chip { display: flex; align-items: center; gap: 5px; background: rgba(123,140,63,.1); border: 1px solid rgba(123,140,63,.25); border-radius: 20px; padding: 4px 12px 4px 14px; font-size: .78rem; color: #4a5e1a; font-family: var(--sans); }
@@ -756,6 +767,7 @@ function closeSidebar() {
 let calEvents = [], calView = 'month', calYear, calMonth;
 let reviewApprovals = {};
 let reviewCaptions = {};
+let reviewFeedback = {};
 
 const TYPE_LABELS = { linkedin:'LI', facebook:'FB', instagram:'IG', youtube:'YT' };
 const ALL_TYPES = ['research','linkedin','facebook','instagram','youtube'];
@@ -1031,9 +1043,10 @@ let _calDates = {};
 
 async function loadReview() {
   document.getElementById('review-body').innerHTML = '<div class="review-empty">Loading review queue…</div>';
-  const [approvals, captions, resR, liR, fbR, igR, ytR, calData] = await Promise.all([
+  const [approvals, captions, feedback, resR, liR, fbR, igR, ytR, calData] = await Promise.all([
     fetch('/api/approvals').then(r=>r.json()),
     fetch('/api/captions').then(r=>r.json()),
+    fetch('/api/feedback').then(r=>r.json()),
     fetch('/api/output/research').then(r=>r.json()),
     fetch('/api/output/linkedin').then(r=>r.json()),
     fetch('/api/output/facebook').then(r=>r.json()),
@@ -1043,6 +1056,7 @@ async function loadReview() {
   ]);
   reviewApprovals = approvals;
   reviewCaptions = captions;
+  reviewFeedback = feedback;
   _calDates = {};
   for (const ev of (calData.events || [])) _calDates[ev.id] = ev.date;
   updateReviewBadge();
@@ -1174,9 +1188,10 @@ function renderReviewCard(item) {
       <div class="rcard-actions">
         <button class="btn-edit"    id="ebtn-${id}" onclick="startEdit('${id}')">Edit</button>
         <button class="btn-approve" id="abtn-${id}" onclick="doApprove('${id}')" ${status==='approved'?'disabled':''}>Approve</button>
-        <button class="btn-reject"  id="rbtn-${id}" onclick="doReject('${id}')"  ${status==='rejected'?'disabled':''}>Reject</button>
+        <button class="btn-reject"  id="rbtn-${id}" onclick="showRejectForm('${id}')" ${status==='rejected'?'disabled':''}>Reject</button>
       </div>
     </div>
+    ${reviewFeedback[id] ? `<div style="padding:8px 16px 10px;border-top:1px solid rgba(255,59,48,.1)"><span class="rejected-reason-note">Rejection note: ${escHtml(reviewFeedback[id])}</span></div>` : ''}
   </div>`;
 }
 
@@ -1252,12 +1267,42 @@ async function doApprove(id) {
   });
 }
 
-async function doReject(id) {
-  await fetch(`/api/approvals/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'rejected'}) });
+function showRejectForm(id) {
+  const card = document.getElementById(`rcard-${id}`);
+  if (!card || card.querySelector('.reject-reason-row')) return;
+  const row = document.createElement('div');
+  row.className = 'reject-reason-row';
+  row.id = `reject-row-${id}`;
+  row.innerHTML = `
+    <div class="reject-reason-label">Why are you rejecting this? (optional — the AI will learn from it)</div>
+    <textarea class="reject-reason-ta" id="reject-ta-${id}" rows="2" placeholder="e.g. Too generic, hook is weak, wrong tone, repeated topic…"></textarea>
+    <div class="reject-reason-btns">
+      <button class="btn-cancel-reject" onclick="cancelReject('${id}')">Cancel</button>
+      <button class="btn-submit-reject" onclick="submitReject('${id}')">Submit Rejection</button>
+    </div>`;
+  card.appendChild(row);
+  document.getElementById(`reject-ta-${id}`).focus();
+}
+
+function cancelReject(id) {
+  const row = document.getElementById(`reject-row-${id}`);
+  if (row) row.remove();
+}
+
+async function submitReject(id) {
+  const reason = document.getElementById(`reject-ta-${id}`)?.value.trim() || '';
+  await fetch(`/api/approvals/${id}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ status: 'rejected', reason: reason || null }),
+  });
   reviewApprovals[id] = 'rejected';
+  if (reason) reviewFeedback[id] = reason;
+  cancelReject(id);
   refreshCard(id);
   const el = document.getElementById(`sched-${id}`);
   if (el) { el.textContent = 'Removed from schedule'; el.className = 'rcard-sched'; }
+  // Re-render just this card so the reason note appears
+  if (reason) loadReview();
 }
 
 async function bulkAction(type, status) {
