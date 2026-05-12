@@ -1076,9 +1076,9 @@ async function loadReview() {
 
   let html = '';
   for (const { type, label } of REVIEW_SECTIONS) {
-    const items = allItems.filter(i=>i.type===type);
+    const items = allItems.filter(i => i.type === type && (reviewApprovals[i.id] ?? 'pending') !== 'rejected');
     if (!items.length) continue;
-    const pendingCount = items.filter(i=>(reviewApprovals[i.id]??'pending')==='pending').length;
+    const pendingCount = items.filter(i => (reviewApprovals[i.id] ?? 'pending') === 'pending').length;
     html += `<div class="review-section">
       <div class="review-section-hd">
         <span class="review-section-title">${label}
@@ -1296,11 +1296,7 @@ async function submitReject(id) {
   reviewApprovals[id] = 'rejected';
   if (reason) reviewFeedback[id] = reason;
   cancelReject(id);
-  refreshCard(id);
-  const el = document.getElementById(`sched-${id}`);
-  if (el) { el.textContent = 'Removed from schedule'; el.className = 'rcard-sched'; }
-  // Re-render just this card so the reason note appears
-  if (reason) loadReview();
+  loadReview();
 }
 
 async function bulkAction(type, status) {
