@@ -624,12 +624,11 @@
   <!-- ── Main ── -->
   <main class="main">
     <nav class="tabs">
-      <button class="tab active" data-tab="research">Research <span class="dot" id="dot-research"></span></button>
+      <button class="tab active" data-tab="calendar">📅 Calendar <span class="dot" id="dot-calendar"></span></button>
       <button class="tab" data-tab="linkedin">LinkedIn <span class="dot" id="dot-linkedin"></span></button>
       <button class="tab" data-tab="facebook">Facebook <span class="dot" id="dot-facebook"></span></button>
       <button class="tab" data-tab="instagram">Instagram <span class="dot" id="dot-instagram"></span></button>
       <button class="tab" data-tab="youtube">YouTube <span class="dot" id="dot-youtube"></span></button>
-      <button class="tab" data-tab="calendar">📅 Calendar <span class="dot" id="dot-calendar"></span></button>
       <button class="tab" data-tab="review">Review <span class="review-badge" id="review-count" style="display:none">0</span></button>
       <button class="tab" data-tab="inspiration">Inspiration</button>
     </nav>
@@ -752,7 +751,7 @@
 
 <script>
 const TODAY = new Date().toISOString().slice(0,10);
-let activeTab = 'research', isRunning = false;
+let activeTab = 'calendar', isRunning = false;
 
 function toggleSidebar() {
   const sb = document.getElementById('sidebar');
@@ -772,7 +771,6 @@ let reviewFeedback = {};
 const TYPE_LABELS = { linkedin:'LI', facebook:'FB', instagram:'IG', youtube:'YT' };
 const ALL_TYPES = ['research','linkedin','facebook','instagram','youtube'];
 const REVIEW_SECTIONS = [
-  { type:'research',  label:'Research Brief' },
   { type:'linkedin',  label:'LinkedIn Posts' },
   { type:'facebook',  label:'Facebook Posts' },
   { type:'instagram', label:'Instagram Posts' },
@@ -791,7 +789,9 @@ async function boot() {
     if (exists) document.getElementById(`dot-${t}`)?.classList.add('has-content');
   reviewApprovals = approvals;
   updateReviewBadge();
-  for (const t of ALL_TYPES) { if (s.outputs[t]) { switchTab(t); break; } }
+  // Start on calendar; if content exists for a social tab, jump to the first one
+  const firstWithContent = ['linkedin','facebook','instagram','youtube'].find(t => s.outputs[t]);
+  switchTab(firstWithContent || 'calendar');
   loadSchedule();
 }
 

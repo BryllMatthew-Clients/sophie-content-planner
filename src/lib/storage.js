@@ -37,7 +37,7 @@ export async function initStore() {
 
 function _readLocalFile(name) {
   try { return JSON.parse(fs.readFileSync(dbFile(name), 'utf8')); }
-  catch { return {}; }
+  catch { return null; }
 }
 
 function _writeLocalFile(name, data) {
@@ -48,9 +48,13 @@ function _writeLocalFile(name, data) {
   } catch {}
 }
 
-// Synchronous read — from in-memory cache
+// Always read from the local file so the server picks up writes made by
+// generation child processes (which have a separate in-memory store).
+// Fall back to in-memory only when the file doesn't exist yet.
 export function readDb(name) {
-  if (mem[name] == null) mem[name] = _readLocalFile(name);
+  const fromFile = _readLocalFile(name);
+  if (fromFile != null) { mem[name] = fromFile; return fromFile; }
+  if (mem[name] == null) mem[name] = {};
   return mem[name];
 }
 

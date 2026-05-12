@@ -1,25 +1,18 @@
 import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { readDb, writeDb } from './storage.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, '..', '..');
+const DB = 'inspiration';
 
-// Stored inside output/ so it lands on Render's persistent disk
-const DATA_FILE = path.join(ROOT, 'output', '.db', 'inspiration.json');
-
-function readFile() {
-  try {
-    return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-  } catch {
-    return { sources: [], keywords: [] };
-  }
+function readData() {
+  const data = readDb(DB);
+  return {
+    sources:  Array.isArray(data?.sources)  ? data.sources  : [],
+    keywords: Array.isArray(data?.keywords) ? data.keywords : [],
+  };
 }
 
-function writeFile(data) {
-  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+function writeData(data) {
+  writeDb(DB, data);
 }
 
 function detectPlatform(url) {
@@ -34,44 +27,42 @@ function detectPlatform(url) {
 
 // ── Inspiration CRUD ─────────────────────────────────────────────
 export function readInspirations() {
-  const { sources } = readFile();
+  const { sources } = readData();
   return { sources: [...sources].sort((a, b) => b.addedAt.localeCompare(a.addedAt)) };
 }
 
 export function addInspiration({ url, label }) {
-  const data = readFile();
-  const id = crypto.randomUUID();
-  const source = { id, url, label: label?.trim() || null, platform: detectPlatform(url), addedAt: new Date().toISOString() };
+  const data = readData();
+  const source = { id: crypto.randomUUID(), url, label: label?.trim() || null, platform: detectPlatform(url), addedAt: new Date().toISOString() };
   data.sources.push(source);
-  writeFile(data);
+  writeData(data);
   return source;
 }
 
 export function removeInspiration(id) {
-  const data = readFile();
+  const data = readData();
   data.sources = data.sources.filter(s => s.id !== id);
-  writeFile(data);
+  writeData(data);
 }
 
 // ── Keywords CRUD ────────────────────────────────────────────────
 export function readKeywords() {
-  const { keywords } = readFile();
+  const { keywords } = readData();
   return { keywords: [...keywords].sort((a, b) => b.addedAt.localeCompare(a.addedAt)) };
 }
 
 export function addKeyword(keyword) {
-  const data = readFile();
-  const id = crypto.randomUUID();
-  const entry = { id, keyword: keyword.trim(), addedAt: new Date().toISOString() };
+  const data = readData();
+  const entry = { id: crypto.randomUUID(), keyword: keyword.trim(), addedAt: new Date().toISOString() };
   data.keywords.push(entry);
-  writeFile(data);
+  writeData(data);
   return entry;
 }
 
 export function removeKeyword(id) {
-  const data = readFile();
+  const data = readData();
   data.keywords = data.keywords.filter(k => k.id !== id);
-  writeFile(data);
+  writeData(data);
 }
 
 // ── Page content scraper (used at research time) ─────────────────
