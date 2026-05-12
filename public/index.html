@@ -817,8 +817,26 @@ async function switchTab(name) {
     return;
   }
   viewer.className = 'viewer';
-  viewer.innerHTML = `<div class="md-content">${marked.parse(content)}</div>`;
+  viewer.innerHTML = `<div class="md-content">${marked.parse(filterRejected(name, content))}</div>`;
   viewer.scrollTop = 0;
+}
+
+function filterRejected(type, content) {
+  if (!content) return content;
+  const pats = {
+    linkedin:  /## Post (\d+) of \d+/,
+    facebook:  /## Facebook Post (\d+) of \d+/,
+    instagram: /## Instagram Post (\d+) of \d+/,
+    youtube:   /## YouTube Topic (\d+)/,
+  };
+  const pat = pats[type];
+  if (!pat) return content;
+  const kept = content.split(/\n---\n/).filter(sec => {
+    const m = sec.match(pat);
+    if (!m) return true;
+    return (reviewApprovals[`${type}-${m[1]}`] ?? 'pending') !== 'rejected';
+  });
+  return kept.join('\n---\n');
 }
 
 // ── Pipeline ──────────────────────────────────────────────────
